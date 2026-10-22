@@ -1,0 +1,36 @@
+# AugmentedTrims - config.yml
+#
+# The actual power table lives in trims.yml (separate file, hot-reloadable
+# with /trims reload).
+
+config-version: 1
+
+settings:
+  # How often equipped armour is re-evaluated. 20 ticks = 1 second.
+  # Lower = more responsive, higher = cheaper. Minimum enforced: 5.
+  refresh-interval-ticks: 20
+
+  # Trim-granted effects are re-applied every refresh; this buffer is added to
+  # the effective duration so effects never visibly flicker between refreshes.
+  duration-buffer-ticks: 40
+
+  # Visual flags for trim-granted potion effects.
+  ambient: true
+  particles: false
+  icon: true
+
+  # Remove the effect the moment the last matching armour piece is taken off.
+  remove-on-unequip: true
+
+  # Verbose logging of tier resolution (very chatty - debugging only).
+  debug: false
+
+messages:
+  prefix: "&8[&6AugmentedTrims&8] &r"
+  header: "&6Trim powers for &e%player%"
+  line: "&8- &f%material% &8x&f%pieces% &7-> &ftier %tier%"
+  line-unknown: "&8- &f%material% &8x&f%pieces% &7-> &7no powers configured"
+  no-trims: "&7No powered trim materials equipped."
+  reloaded: "&aReloaded config.yml and trims.yml."
+  no-permission: "&cYou don't have permission to do that."
+  player-not-found: "&cPlayer not found: &f%player%"

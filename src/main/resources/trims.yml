@@ -1,0 +1,118 @@
+# AugmentedTrims - trims.yml
+#
+# ============================ HOW THIS WORKS ============================
+# Each trim MATERIAL gets a power table. A trim on an armour piece counts as
+# ONE "piece" of that material, so a full same-material set = 4 pieces.
+#
+#   tiers:
+#     1: ...   powers with 1 piece equipped   (weakest)
+#     4: ...   powers with all 4 pieces       (strongest)
+#
+# Lookup rule: the exact piece count is used when a tier exists for it,
+# otherwise the highest tier whose number is <= the piece count. So you can
+# author only tiers 1 and 4 and the plugin will use tier 1 for 2-3 pieces.
+#
+# You can skip intermediate tiers, add any vanilla trim material id
+# (amethyst, copper, diamond, emerald, gold, iron, lapis, netherite, quartz,
+# redstone, resin, ...) and change numbers without touching the plugin.
+# Materials with no entry here are simply ignored.
+#
+# effect fields:
+#   type          vanilla effect id (speed, regeneration, resistance, ...)
+#   amplifier     0 = level I, 1 = level II, ...
+#   duration-ticks  optional; omit to use the refresh interval from config.yml
+# =========================================================================
+
+materials:
+  copper:
+    tiers:
+      "1":
+        effects:
+          - type: speed
+            amplifier: 0
+      "2":
+        effects:
+          - type: speed
+            amplifier: 0
+      "3":
+        effects:
+          - type: speed
+            amplifier: 1
+      "4":
+        effects:
+          - type: speed
+            amplifier: 1
+          - type: jump_boost
+            amplifier: 0
+
+  iron:
+    tiers:
+      "1":
+        effects:
+          - type: resistance
+            amplifier: 0
+      "3":
+        effects:
+          - type: resistance
+            amplifier: 1
+      "4":
+        effects:
+          - type: resistance
+            amplifier: 1
+          - type: absorption
+            amplifier: 0
+
+  gold:
+    tiers:
+      "1":
+        effects:
+          - type: haste
+            amplifier: 0
+      "4":
+        effects:
+          - type: haste
+            amplifier: 1
+          - type: luck
+            amplifier: 0
+
+  diamond:
+    tiers:
+      "1":
+        effects:
+          - type: health_boost
+            amplifier: 0
+      "4":
+        effects:
+          - type: health_boost
+            amplifier: 1
+          - type: regeneration
+            amplifier: 0
+
+  netherite:
+    tiers:
+      "1":
+        effects:
+          - type: fire_resistance
+            amplifier: 0
+      "4":
+        effects:
+          - type: fire_resistance
+            amplifier: 0
+          - type: resistance
+            amplifier: 1
+          - type: strength
+            amplifier: 0
+
+  amethyst:
+    tiers:
+      "1":
+        effects:
+          - type: night_vision
+            amplifier: 0
+
+  quartz:
+    tiers:
+      "4":
+        effects:
+          - type: absorption
+            amplifier: 1

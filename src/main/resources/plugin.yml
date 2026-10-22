@@ -1,0 +1,22 @@
+name: AugmentedTrims
+version: ${project.version}
+main: com.Speedymr01.AugmentedTrims.AugmentedTrims
+api-version: '26.1.2'
+description: Armor trim powers - the more pieces share a trim material, the stronger its effect.
+author: Speedymr01
+website: https://modrinth.com/plugin/augmentedtrims
+
+commands:
+  trims:
+    description: Inspect your equipped trims and their active powers
+    usage: /trims [info [player]|reload]
+    aliases: [trim, augtrims]
+    permission: augmentedtrims.use
+
+permissions:
+  augmentedtrims.use:
+    description: Allows /trims info
+    default: true
+  augmentedtrims.admin:
+    description: Allows /trims reload and inspecting other players
+    default: op
