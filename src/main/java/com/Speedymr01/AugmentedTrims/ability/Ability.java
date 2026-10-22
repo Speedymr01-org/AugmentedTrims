@@ -17,8 +17,13 @@ public interface Ability {
     /** Cooldown in seconds for the given piece tier (1-4). */
     int cooldownSeconds(int tier);
 
-    /** Fires the ability. Called on the main thread after all gate checks passed. */
-    void cast(Player player, int tier);
+    /**
+     * Fires the ability. Called on the main thread after all gate checks passed.
+     *
+     * @return {@code false} when the cast could not happen (no valid target); the caller then
+     *         skips the cooldown and the success message
+     */
+    boolean cast(Player player, int tier);
 
     /** Stops any running instance for this player (death, logout, disable). */
     default void cancel(Player player) {

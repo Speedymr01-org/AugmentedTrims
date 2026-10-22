@@ -100,7 +100,10 @@ public final class StarListener implements Listener {
         }
 
         int tier = Math.min(4, pieces);
-        ability.get().cast(player, tier);
+        if (!ability.get().cast(player, tier)) {
+            message(player, "messages.ability.no-target");
+            return;
+        }
         cooldowns.start(player, material, ability.get().cooldownSeconds(tier));
         cooldowns.reconcile(player, material, true);
         message(player, "messages.ability.activated");

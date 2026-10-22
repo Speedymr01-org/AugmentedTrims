@@ -61,7 +61,7 @@ public final class QuartzRefract implements Ability {
     }
 
     @Override
-    public void cast(Player player, int tier) {
+    public boolean cast(Player player, int tier) {
         var config = plugin.getConfig();
         double duration = config.getDouble("abilities.quartz.tiers." + tier + ".duration-seconds", 4.0);
 
@@ -70,6 +70,7 @@ public final class QuartzRefract implements Ability {
         window.reflectionsLeft = config.getInt("abilities.quartz.tiers." + tier + ".max-reflections", 5);
         window.homing = config.getBoolean("abilities.quartz.tiers." + tier + ".homing", true);
         windows.put(player.getUniqueId(), window);
+        return true;
     }
 
     public boolean canReflect(Player player) {

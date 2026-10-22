@@ -26,6 +26,39 @@ a copper helmet + copper boots (`copper x2` → tier 2) and a netherite chestpla
 2. Start the server — `config.yml` and `trims.yml` are generated in `plugins/AugmentedTrims/`.
 3. Edit `trims.yml` to taste, then `/trims reload`.
 
+## Ability Stars
+
+Trim powers are passive. Active abilities come from **Ability Stars**: a nether star attuned
+to a trim material.
+
+**Craft a formless star** (3×3, checkerboard of ghast tears and glass blocks):
+
+```
+T G T      T = ghast tear (5)
+G T G      G = glass block (4)
+T G T
+```
+
+**Attune it** at a smithing table with a vanilla netherite upgrade template, the star, and
+the material's item (ingot / shard / clump). The template is consumed. Attuning an already
+attuned star re-attunes it. A plain nether star cannot be attuned — it must be crafted.
+
+| Ability | Material | What it does |
+|---|---|---|
+| Arrow Torrent | Iron | A stream of arrows along your crosshair, blocked by terrain (2–4 arrows/s for 3–5 s) |
+| Refract | Quartz | Incoming projectiles are deflected back at the shooter along a solved arc; tier 4 homes |
+| Thunderstrike | Copper | Lightning on the block you look at, no fire, 15 armour-ignoring damage in a 3 block radius |
+
+Attuned stars read `Attuned star: <Material>` (aqua) and glint. Right-click with one in your
+main hand to cast — a green `Ability activated.` or a red `Ability on cooldown.`
+
+- Cooldowns are tracked in memory, per material, and mirror onto the vanilla item cooldown
+  display. They survive armour swaps, dropping the star, re-attuning and relogging; a server
+  restart clears them.
+- Without armour of that material the star shows a permanent cooldown until you wear some.
+- Dying or logging out cancels an active ability; the cooldown keeps running.
+- Stars cannot be used to craft beacons.
+
 ## Commands
 
 | Command | Permission | Description |
@@ -33,12 +66,14 @@ a copper helmet + copper boots (`copper x2` → tier 2) and a netherite chestpla
 | `/trims info` | `augmentedtrims.use` (default: everyone) | Show your worn trims and their tiers |
 | `/trims info <player>` | `augmentedtrims.admin` | Inspect another player |
 | `/trims reload` | `augmentedtrims.admin` | Reload `config.yml` + `trims.yml` |
+| `/trims give <formless\|material> [player]` | `augmentedtrims.admin` | Give a formless or attuned star |
+| `/trims cooldown [player]` | `augmentedtrims.admin` | Clear ability cooldowns |
 
 Aliases: `/trim`, `/augtrims`
 
 ## Configuration
 
-`config.yml` holds refresh/visual settings:
+`config.yml` holds refresh/visual settings plus ability tuning under `abilities:`:
 
 ```yaml
 settings:

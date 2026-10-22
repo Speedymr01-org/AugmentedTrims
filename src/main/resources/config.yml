@@ -26,8 +26,19 @@ settings:
   debug: false
 
 abilities:
-  # Iron - Arrow Torrent: 4 arrows/second tracking the crosshair, blockable by terrain.
-  iron:
+  # Copper - Thunderstrike: lightning on the block you are looking at, never sets fire.
+  # Damage uses the vanilla lightning damage type, which bypasses armour.
+  copper:
+    range: 30.0
+    radius: 3.0
+    damage-caster: false
+    tiers:
+      "1": { damage: 15.0, cooldown: 55 }
+      "2": { damage: 15.0, cooldown: 55 }
+      "3": { damage: 15.0, cooldown: 55 }
+      "4": { damage: 15.0, cooldown: 55 }
+
+  # Iron - Arrow Torrent: 4 arrows/second tracking the crosshair, blockable by terrain.  iron:
     arrow:
       speed: 3.0
       spread-degrees: 1.5
@@ -70,3 +81,4 @@ messages:
     activated: "&aAbility activated."
     on-cooldown: "&cAbility on cooldown."
     not-attuned: "&cThis star is not attuned."
+    no-target: "&cNo block in range."

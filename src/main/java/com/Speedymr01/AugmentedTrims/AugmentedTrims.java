@@ -2,6 +2,7 @@ package com.Speedymr01.AugmentedTrims;
 
 import com.Speedymr01.AugmentedTrims.ability.Ability;
 import com.Speedymr01.AugmentedTrims.ability.AbilityManager;
+import com.Speedymr01.AugmentedTrims.ability.impl.CopperThunderstrike;
 import com.Speedymr01.AugmentedTrims.ability.impl.IronArrowTorrent;
 import com.Speedymr01.AugmentedTrims.ability.impl.QuartzRefract;
 import com.Speedymr01.AugmentedTrims.command.TrimsCommand;
@@ -56,6 +57,7 @@ public final class AugmentedTrims extends JavaPlugin {
         this.abilityManager = new AbilityManager();
         abilityManager.register(new IronArrowTorrent(this));
         abilityManager.register(quartz);
+        abilityManager.register(new CopperThunderstrike(this));
 
         this.recipes = new StarRecipes(this, starFactory, abilityManager);
         recipes.register();

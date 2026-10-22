@@ -51,7 +51,7 @@ public final class IronArrowTorrent implements Ability {
     }
 
     @Override
-    public void cast(Player player, int tier) {
+    public boolean cast(Player player, int tier) {
         cancel(player);
 
         var config = plugin.getConfig();
@@ -81,6 +81,7 @@ public final class IronArrowTorrent implements Ability {
         }.runTaskTimer(plugin, 0L, 1L);
 
         tasks.put(id, task);
+        return true;
     }
 
     /** @return whether a volley is due at this tick index for the given interval. */
