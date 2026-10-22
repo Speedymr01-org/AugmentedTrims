@@ -83,9 +83,8 @@ public final class AbilityStarFactory {
 
         ItemStack stack = new ItemStack(Material.NETHER_STAR);
         stack.editMeta(meta -> {
-            meta.displayName(styled(Component.text(display + " Ability Star", NamedTextColor.AQUA)));
+            meta.displayName(styled(Component.text("Attuned star: " + display, NamedTextColor.AQUA)));
             meta.lore(List.of(
-                    styled(Component.text("Attuned to: " + display, NamedTextColor.GRAY)),
                     styled(Component.text("Right-click to activate.", NamedTextColor.DARK_GRAY))));
             meta.setEnchantmentGlintOverride(true);
             meta.setMaxStackSize(1);

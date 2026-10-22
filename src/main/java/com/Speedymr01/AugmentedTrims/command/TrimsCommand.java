@@ -117,7 +117,7 @@ public final class TrimsCommand implements CommandExecutor, TabCompleter {
 
         String itemName = (requested.equals("formless") || requested.equals("none"))
                 ? "Formless Star"
-                : plugin.starFactory().displayName(requested) + " Ability Star";
+                : "Attuned star: " + plugin.starFactory().displayName(requested);
         sender.sendMessage(message("messages.give",
                 "%amount%", String.valueOf(star.getAmount()),
                 "%item%", itemName,
