@@ -1,9 +1,9 @@
 # AugmentedTrims - config.yml
 #
-# The actual power table lives in trims.yml (separate file, hot-reloadable
-# with /trims reload).
+# Passive trim powers live in trims.yml (separate file, hot-reloadable with /trims reload).
+# Ability tuning lives here.
 
-config-version: 1
+config-version: 2
 
 settings:
   # How often equipped armour is re-evaluated. 20 ticks = 1 second.
@@ -25,6 +25,35 @@ settings:
   # Verbose logging of tier resolution (very chatty - debugging only).
   debug: false
 
+abilities:
+  # Iron - Arrow Torrent: 4 arrows/second tracking the crosshair, blockable by terrain.
+  iron:
+    arrow:
+      speed: 3.0
+      spread-degrees: 1.5
+      damage: 4.0
+    tiers:
+      "1": { arrows-per-second: 2, duration-seconds: 3, cooldown: 55 }
+      "2": { arrows-per-second: 3, duration-seconds: 4, cooldown: 50 }
+      "3": { arrows-per-second: 3, duration-seconds: 5, cooldown: 45 }
+      "4": { arrows-per-second: 4, duration-seconds: 5, cooldown: 40 }
+
+  # Quartz - Refract: incoming projectiles bounce back along a solved ballistic arc.
+  # Tiers 1-3 solve the arc once; tier 4 re-solves every tick (homing).
+  quartz:
+    projectile:
+      speed-multiplier: 1.2
+      # A projectile reflected this recently cannot be reflected again (anti ping-pong).
+      reflection-min-interval-ticks: 10
+      arc:
+        min-flight-ticks: 8
+        max-flight-ticks: 40
+    tiers:
+      "1": { duration-seconds: 2.0, max-reflections: 2, cooldown: 90, homing: false }
+      "2": { duration-seconds: 2.5, max-reflections: 3, cooldown: 80, homing: false }
+      "3": { duration-seconds: 3.0, max-reflections: 4, cooldown: 70, homing: false }
+      "4": { duration-seconds: 4.0, max-reflections: 5, cooldown: 60, homing: true }
+
 messages:
   prefix: "&8[&6AugmentedTrims&8] &r"
   header: "&6Trim powers for &e%player%"
@@ -34,3 +63,10 @@ messages:
   reloaded: "&aReloaded config.yml and trims.yml."
   no-permission: "&cYou don't have permission to do that."
   player-not-found: "&cPlayer not found: &f%player%"
+  give: "&aGave &f%amount%x %item% &ato &f%player%&a."
+  give-usage: "&cUsage: /trims give <formless|material> [player]"
+  cooldown-cleared: "&aCleared ability cooldowns for &f%player%&a."
+  ability:
+    activated: "&aAbility activated."
+    on-cooldown: "&cAbility on cooldown."
+    not-attuned: "&cThis star is not attuned."

@@ -9,7 +9,7 @@ website: https://modrinth.com/plugin/augmentedtrims
 commands:
   trims:
     description: Inspect your equipped trims and their active powers
-    usage: /trims [info [player]|reload]
+    usage: /trims [info [player]|reload|give <formless|material> [player]|cooldown [player]]
     aliases: [trim, augtrims]
     permission: augmentedtrims.use
 
@@ -18,5 +18,5 @@ permissions:
     description: Allows /trims info
     default: true
   augmentedtrims.admin:
-    description: Allows /trims reload and inspecting other players
+    description: Allows /trims reload, /trims give, clearing cooldowns and inspecting other players
     default: op
