@@ -69,6 +69,8 @@ abilities:
   # It lands as a real cobweb block, deals no damage and never drops an item.
   resin:
     speed: 1.6
+    gravity: 0.04
+    max-flight-ticks: 120
     tiers:
       "1": { cooldown: 30 }
       "2": { cooldown: 23 }
