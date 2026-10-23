@@ -16,8 +16,6 @@ import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
-import org.bukkit.block.Block;
-import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.FishHook;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
@@ -26,7 +24,6 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
-import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
@@ -200,24 +197,6 @@ public final class StarListener implements Listener {
         if (projectile.getPersistentDataContainer().has(StarKeys.ABILITY_ARROW, PersistentDataType.STRING)) {
             projectile.remove();
         }
-    }
-
-    /** Pins our cobweb shot to a real cobweb block on landing; never drops an item. */
-    @EventHandler(ignoreCancelled = true)
-    public void onFallingBlockLand(EntityChangeBlockEvent event) {
-        if (!(event.getEntity() instanceof FallingBlock fallingBlock)) {
-            return;
-        }
-        if (!fallingBlock.getPersistentDataContainer().has(StarKeys.RESIN_WEB, PersistentDataType.BYTE)) {
-            return;
-        }
-
-        Block block = event.getBlock();
-        event.setCancelled(true);
-        if (block.isEmpty() || block.isLiquid()) {
-            block.setType(Material.COBWEB, false);
-        }
-        fallingBlock.remove();
     }
 
     // ------------------------------------------------------------- lifecycle
