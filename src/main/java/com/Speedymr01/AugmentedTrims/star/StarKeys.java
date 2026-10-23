@@ -12,6 +12,7 @@ public final class StarKeys {
     public static NamespacedKey ABILITY;
     public static NamespacedKey REFLECTED;
     public static NamespacedKey ABILITY_ARROW;
+    public static NamespacedKey RESIN_WEB;
 
     private StarKeys() {
     }
@@ -21,5 +22,6 @@ public final class StarKeys {
         ABILITY = new NamespacedKey(plugin, "ability");
         REFLECTED = new NamespacedKey(plugin, "reflected");
         ABILITY_ARROW = new NamespacedKey(plugin, "ability_arrow");
+        RESIN_WEB = new NamespacedKey(plugin, "resin_web");
     }
 }

@@ -65,6 +65,16 @@ abilities:
       "3": { duration-seconds: 3.0, max-reflections: 4, cooldown: 70, homing: false }
       "4": { duration-seconds: 4.0, max-reflections: 5, cooldown: 60, homing: true }
 
+  # Resin - Cobweb Shot: one cobweb thrown as a falling block along your view direction.
+  # It lands as a real cobweb block, deals no damage and never drops an item.
+  resin:
+    speed: 1.6
+    tiers:
+      "1": { cooldown: 30 }
+      "2": { cooldown: 23 }
+      "3": { cooldown: 17 }
+      "4": { cooldown: 10 }
+
 messages:
   prefix: "&8[&6AugmentedTrims&8] &r"
   header: "&6Trim powers for &e%player%"

@@ -48,6 +48,7 @@ attuned star re-attunes it. A plain nether star cannot be attuned — it must be
 | Arrow Torrent | Iron | A stream of arrows along your crosshair, blocked by terrain (2–4 arrows/s for 3–5 s) |
 | Refract | Quartz | Incoming projectiles are deflected back at the shooter along a solved arc; tier 4 homes |
 | Thunderstrike | Copper | Lightning on the block you look at, no fire, 15 armour-ignoring damage in a 3 block radius |
+| Cobweb Shot | Resin | Throws a single cobweb that lands as a real block; no damage |
 
 Attuned stars read `Attuned star: <Material>` (aqua) and glint. Right-click with one in your
 main hand to cast — a green `Ability activated.` or a red `Ability on cooldown.`
