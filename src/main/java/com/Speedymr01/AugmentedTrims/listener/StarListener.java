@@ -105,7 +105,8 @@ public final class StarListener implements Listener {
         }
         cooldowns.start(player, material, ability.get().cooldownSeconds(tier));
         cooldowns.reconcile(player, material, true);
-        message(player, "messages.ability.activated");
+        String path = ability.get().successMessagePath(player, tier);
+        message(player, path == null ? "messages.ability.activated" : path);
     }
 
     // ------------------------------------------------------------- crafting
@@ -217,7 +218,11 @@ public final class StarListener implements Listener {
 
     private void message(Player player, String path) {
         String prefix = plugin.getConfig().getString("messages.prefix", "");
-        String text = plugin.getConfig().getString(path, path);
+        String text = plugin.getConfig().getString(path);
+        if (text == null) {
+            // Config written by an older version: fall back to the generic success message.
+            text = plugin.getConfig().getString("messages.ability.activated", path);
+        }
         player.sendMessage(LegacyComponentSerializer.legacyAmpersand().deserialize(prefix + text));
     }
 }

@@ -25,6 +25,14 @@ public interface Ability {
      */
     boolean cast(Player player, int tier);
 
+    /**
+     * Message path shown after a successful cast, or {@code null} for
+     * {@code messages.ability.activated}. Toggle abilities use this to report both directions.
+     */
+    default String successMessagePath(Player player, int tier) {
+        return null;
+    }
+
     /** Stops any running instance for this player (death, logout, disable). */
     default void cancel(Player player) {
     }

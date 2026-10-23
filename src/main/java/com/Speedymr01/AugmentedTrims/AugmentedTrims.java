@@ -4,6 +4,7 @@ import com.Speedymr01.AugmentedTrims.ability.Ability;
 import com.Speedymr01.AugmentedTrims.ability.AbilityManager;
 import com.Speedymr01.AugmentedTrims.ability.impl.CopperThunderstrike;
 import com.Speedymr01.AugmentedTrims.ability.impl.IronArrowTorrent;
+import com.Speedymr01.AugmentedTrims.ability.impl.NetheriteAura;
 import com.Speedymr01.AugmentedTrims.ability.impl.QuartzRefract;
 import com.Speedymr01.AugmentedTrims.ability.impl.ResinCobweb;
 import com.Speedymr01.AugmentedTrims.command.TrimsCommand;
@@ -60,6 +61,7 @@ public final class AugmentedTrims extends JavaPlugin {
         abilityManager.register(quartz);
         abilityManager.register(new CopperThunderstrike(this));
         abilityManager.register(new ResinCobweb(this));
+        abilityManager.register(new NetheriteAura(this));
 
         this.recipes = new StarRecipes(this, starFactory, abilityManager);
         recipes.register();

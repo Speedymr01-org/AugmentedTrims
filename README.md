@@ -49,6 +49,7 @@ attuned star re-attunes it. A plain nether star cannot be attuned — it must be
 | Refract | Quartz | Incoming projectiles are deflected back at the shooter along a solved arc; tier 4 homes |
 | Thunderstrike | Copper | Lightning on the block you look at, no fire, 15 armour-ignoring damage in a 3 block radius |
 | Cobweb Shot | Resin | Throws a single cobweb that lands as a real block; no damage |
+| Dread Aura | Netherite | **Toggle.** While on, players within 1 / 2.5 / 4 / 5.5 blocks (tiers 1–4) get blindness + nausea for 5 s |
 
 Attuned stars read `Attuned star: <Material>` (aqua) and glint. Right-click with one in your
 main hand to cast — a green `Ability activated.` or a red `Ability on cooldown.`
@@ -58,6 +59,9 @@ main hand to cast — a green `Ability activated.` or a red `Ability on cooldown
   restart clears them.
 - Without armour of that material the star shows a permanent cooldown until you wear some.
 - Dying or logging out cancels an active ability; the cooldown keeps running.
+- Netherite's Dread Aura is a toggle: right-click to turn it on, right-click again to turn it
+  off, one second cooldown either way. The five second blindness/nausea is re-applied while
+  someone is in range and simply runs out when they leave it.
 - Stars cannot be used to craft beacons.
 
 ## Commands

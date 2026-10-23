@@ -38,7 +38,8 @@ abilities:
       "3": { damage: 15.0, cooldown: 55 }
       "4": { damage: 15.0, cooldown: 55 }
 
-  # Iron - Arrow Torrent: 4 arrows/second tracking the crosshair, blockable by terrain.  iron:
+  # Iron - Arrow Torrent: 4 arrows/second tracking the crosshair, blockable by terrain.
+  iron:
     arrow:
       speed: 3.0
       spread-degrees: 1.5
@@ -65,8 +66,9 @@ abilities:
       "3": { duration-seconds: 3.0, max-reflections: 4, cooldown: 70, homing: false }
       "4": { duration-seconds: 4.0, max-reflections: 5, cooldown: 60, homing: true }
 
-  # Resin - Cobweb Shot: one cobweb thrown as a falling block along your view direction.
-  # It lands as a real cobweb block, deals no damage and never drops an item.
+  # Resin - Cobweb Shot: one cobweb thrown along your view direction.
+  # It becomes a real cobweb block on the first surface it touches, deals no damage and
+  # never drops an item.
   resin:
     speed: 1.6
     gravity: 0.04
@@ -76,6 +78,31 @@ abilities:
       "2": { cooldown: 23 }
       "3": { cooldown: 17 }
       "4": { cooldown: 10 }
+
+  # Netherite - Dread Aura: a TOGGLE. While on, every player inside the radius is blinded
+  # and nauseated. The effect is always applied for the same fixed duration, so leaving the
+  # radius does not clear it instantly - it just stops being refreshed and runs out.
+  netherite:
+    # How often the aura is re-applied while it is on. Needs a server restart to change.
+    interval-ticks: 20
+    # Flat cost of toggling on OR off (both directions).
+    cooldown: 1
+    # Always 5 seconds, independent of radius. Never shorter, or the effect would
+    # disappear the moment someone steps out of range.
+    effect-duration-ticks: 100
+    # 0 = level I.
+    amplifier: 0
+    # Blind the wearer too. Off by default so the aura only hits everyone else.
+    affect-self: false
+    # Start enabled the moment netherite-trimmed armour is worn, without right-clicking.
+    # The star then toggles it off/on. Leave false for "toggle it on when you want it".
+    default-enabled: false
+    # Radius in blocks per tier: 1, 2.5, 4, 5.5 (= 1 + 1.5 per tier).
+    radius:
+      "1": 1.0
+      "2": 2.5
+      "3": 4.0
+      "4": 5.5
 
 messages:
   prefix: "&8[&6AugmentedTrims&8] &r"
@@ -94,3 +121,6 @@ messages:
     on-cooldown: "&cAbility on cooldown."
     not-attuned: "&cThis star is not attuned."
     no-target: "&cNo block in range."
+    aura-on: "&5Dread aura enabled."
+    aura-off: "&7Dread aura disabled."
+    aura-ended: "&7Dread aura ended - no netherite trim equipped."
