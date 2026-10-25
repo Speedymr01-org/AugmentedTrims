@@ -50,6 +50,7 @@ attuned star re-attunes it. A plain nether star cannot be attuned — it must be
 | Thunderstrike | Copper | Lightning on the block you look at, no fire, 15 armour-ignoring damage in a 3 block radius |
 | Cobweb Shot | Resin | Throws a single cobweb that lands as a real block; no damage |
 | Dread Aura | Netherite | **Toggle.** While on, players within 1 / 2.5 / 4 / 5.5 blocks (tiers 1–4) get blindness + nausea for 5 s |
+| EMP | Redstone | One tick pulse in a 4 / 6 / 8 / 10 block sphere: redstone reads powered, lamps light, doors open, TNT primes, 55 s |
 
 Attuned stars read `Attuned star: <Material>` (aqua) and glint. Right-click with one in your
 main hand to cast — a green `Ability activated.` or a red `Ability on cooldown.`

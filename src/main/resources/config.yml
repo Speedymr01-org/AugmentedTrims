@@ -32,6 +32,9 @@ abilities:
     range: 30.0
     radius: 3.0
     damage-caster: false
+    # true  = magic damage, which vanilla lists in bypasses_armor (message: "killed by magic")
+    # false = vanilla lightning damage, which armour DOES reduce
+    ignore-armour: true
     tiers:
       "1": { damage: 15.0, cooldown: 55 }
       "2": { damage: 15.0, cooldown: 55 }
@@ -78,6 +81,22 @@ abilities:
       "2": { cooldown: 23 }
       "3": { cooldown: 17 }
       "4": { cooldown: 10 }
+
+  # Redstone - EMP: a one tick pulse through every block in a 3D sphere around you.
+  # Redstone wire jumps to full power, levers/buttons/rails read as powered, redstone lamps and
+  # torches light, doors/trapdoors/gates open and TNT is primed. Every change is reverted on the
+  # next tick, so it is a pulse and never a permanent rewire. Ignores walls.
+  redstone:
+    # Always 55 seconds, whatever the tier.
+    cooldown: 55
+    # Fuse given to TNT the pulse ignites (vanilla default is 80).
+    tnt-fuse-ticks: 80
+    # Sphere radius in blocks per tier: 4, 6, 8, 10 (= 4 + 2 per tier).
+    radius:
+      "1": 4.0
+      "2": 6.0
+      "3": 8.0
+      "4": 10.0
 
   # Netherite - Dread Aura: a TOGGLE. While on, every player inside the radius is blinded
   # and nauseated. The effect is always applied for the same fixed duration, so leaving the
