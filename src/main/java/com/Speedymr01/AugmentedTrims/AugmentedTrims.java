@@ -9,6 +9,7 @@ import com.Speedymr01.AugmentedTrims.ability.impl.QuartzRefract;
 import com.Speedymr01.AugmentedTrims.ability.impl.RedstoneEmp;
 import com.Speedymr01.AugmentedTrims.ability.impl.ResinCobweb;
 import com.Speedymr01.AugmentedTrims.command.TrimsCommand;
+import com.Speedymr01.AugmentedTrims.config.ConfigUpdater;
 import com.Speedymr01.AugmentedTrims.config.TrimPowerConfig;
 import com.Speedymr01.AugmentedTrims.craft.StarRecipes;
 import com.Speedymr01.AugmentedTrims.listener.StarListener;
@@ -49,6 +50,10 @@ public final class AugmentedTrims extends JavaPlugin {
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        // Upgrade the owner's config.yml in place: keep every edited value, add new keys, drop
+        // keys that no longer exist. Runs before anything reads the config.
+        ConfigUpdater.sync(this, "config.yml", "config.yml");
+        reloadConfig();
         StarKeys.init(this);
 
         this.trimConfig = TrimPowerConfig.load(this);

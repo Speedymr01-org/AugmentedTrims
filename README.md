@@ -79,7 +79,10 @@ Aliases: `/trim`, `/augtrims`
 
 ## Configuration
 
-`config.yml` holds refresh/visual settings plus ability tuning under `abilities:`:
+`config.yml` holds refresh/visual settings plus ability tuning under `abilities:`. On startup the
+file is synced with the copy bundled in the jar: keys you have edited are never touched, keys
+added by a newer version are inserted with their comments, and keys the plugin no longer uses are
+removed. The log reports exactly what changed, and a file that fails to parse is left alone.
 
 ```yaml
 settings:
