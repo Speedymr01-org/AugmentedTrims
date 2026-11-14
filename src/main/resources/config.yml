@@ -150,6 +150,7 @@ messages:
   ability:
     activated: "&aAbility activated."
     on-cooldown: "&cAbility on cooldown."
+    # Shown when the player wears no armour of that material: the star has no power without it.
     no-armour: "&cYou need %material% trim armour to power this star."
     not-attuned: "&cThis star is not attuned."
     no-target: "&cNo block in range."

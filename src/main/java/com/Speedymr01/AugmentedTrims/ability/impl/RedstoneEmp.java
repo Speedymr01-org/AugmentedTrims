@@ -169,21 +169,27 @@ public final class RedstoneEmp implements Ability {
 
         // Optional: let the vanilla engine do the work with temporary blocks of redstone.
         List<Block> sources = List.of();
-        if (realSources()) {
+        boolean engine = realSources();
+        if (engine) {
             sources = placeSources(world, new ArrayList<>(result.applied().keySet()), maxSources());
             hideSources(world, sources);
         }
 
-        // The blocks that act on power act, even without a signal.
-        for (Block action : result.actions()) {
-            fire(world, action);
+        // The blocks that act on power act, even without a signal. In engine mode the vanilla
+        // engine does this itself, so doing it here as well would fire them twice.
+        if (!engine) {
+            for (Block action : result.actions()) {
+                fire(world, action);
+            }
         }
 
         // The pulse travels along the wires and powers what they feed.
         List<Reach> reached = propagate(world, result, true);
-        for (Reach reach : reached) {
-            if (!result.actions().contains(reach.block())) {
-                fire(world, reach.block());
+        if (!engine) {
+            for (Reach reach : reached) {
+                if (!result.actions().contains(reach.block())) {
+                    fire(world, reach.block());
+                }
             }
         }
 
