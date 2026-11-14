@@ -11,6 +11,7 @@ import com.Speedymr01.AugmentedTrims.ability.impl.RedstoneEmp.SweepResult;
 
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
@@ -76,16 +77,22 @@ public final class EmpDebugCommand {
         Location centre = player.getLocation().add(0, 0.9, 0);
         SweepResult result = plugin.redstoneEmp().sweep(world, centre, radius, apply);
 
+        List<Block> sources = List.of();
         if (apply) {
+            // Same as the ability: real power sources, so the engine reacts the same way.
+            sources = plugin.redstoneEmp().placeSources(world,
+                    new ArrayList<>(result.applied().keySet()), plugin.redstoneEmp().maxSources());
             plugin.redstoneEmp().notifyClients(world, result.applied());
-            plugin.redstoneEmp().restoreLater(result.previous(), ticks);
+            plugin.redstoneEmp().hideSources(world, sources);
+            plugin.redstoneEmp().restoreLater(result.previous(), sources, ticks);
         }
 
-        report(player, radius, ticks, apply, result);
+        report(player, radius, ticks, apply, result, sources);
         return true;
     }
 
-    private void report(Player player, double radius, int ticks, boolean apply, SweepResult result) {
+    private void report(Player player, double radius, int ticks, boolean apply, SweepResult result,
+                        List<Block> sources) {
         String mode = apply ? "APPLY" : "DRY";
         StringBuilder head = new StringBuilder();
         head.append("player=").append(player.getName())
@@ -103,8 +110,14 @@ public final class EmpDebugCommand {
                 .append(" liquid=").append(result.liquid())
                 .append(" tnt=").append(result.tnt().size())
                 .append(" changes=").append(result.changes().size())
+                .append(" sources=").append(sources.size())
                 .append(" stuck=").append(result.stuck());
         plugin.getLogger().info(PREFIX + " " + head);
+
+        for (Block source : sources) {
+            plugin.getLogger().info(PREFIX + "   power source " + source.getX() + "," + source.getY()
+                    + "," + source.getZ() + " (temporary, removed when the pulse ends)");
+        }
 
         for (Change change : result.changes()) {
             plugin.getLogger().info(PREFIX + "   " + change.x() + "," + change.y() + "," + change.z()
@@ -136,6 +149,7 @@ public final class EmpDebugCommand {
                 .append(Component.text(" | scanned " + result.scanned()
                         + " | changes " + result.changes().size()
                         + " | tnt " + result.tnt().size()
+                        + " | sources " + sources.size()
                         + " | stuck " + result.stuck(), NamedTextColor.GRAY)));
         player.sendMessage(Component.text("[EMP] full report in the server console.",
                 NamedTextColor.DARK_GRAY));

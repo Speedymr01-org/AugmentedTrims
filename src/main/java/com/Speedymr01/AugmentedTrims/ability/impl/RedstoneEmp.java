@@ -1,9 +1,11 @@
 package com.Speedymr01.AugmentedTrims.ability.impl;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.Speedymr01.AugmentedTrims.ability.Ability;
 
@@ -19,6 +21,8 @@ import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.Lightable;
 import org.bukkit.block.data.Openable;
 import org.bukkit.block.data.Powerable;
+import org.bukkit.block.data.type.Piston;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TNTPrimed;
@@ -27,20 +31,54 @@ import org.bukkit.plugin.java.JavaPlugin;
 /**
  * Redstone - EMP.
  *
- * <p>Fires a one tick pulse through every block in a 3D sphere around the caster: redstone wire
- * jumps to full power, levers/buttons/rails/repeaters/comparators read as powered, redstone
- * lamps and redstone torches light, doors/trapdoors/fence gates open, and TNT is primed. The
- * original block data is snapshotted and restored on the next tick, so nothing is permanently
- * rewired - it is a pulse, not a rebuild.
+ * <p>Fires a pulse through every block in a 3D sphere around the caster: redstone wire jumps to
+ * full power, levers/buttons/rails/repeaters/comparators read as powered, redstone lamps and
+ * redstone torches light, doors/trapdoors/fence gates open, pistons extend and TNT is primed.
  *
- * <p>The sphere ignores walls and line of sight: anything inside the radius is affected. Blocks
- * are flipped directly rather than being fed a real redstone signal, which is what makes the
- * one tick pulse possible (a real signal would need a power source and would re-propagate).
+ * <p>Flipping the block states alone is not enough: the vanilla redstone engine would never hear
+ * about it, so a wire would look bright without powering the lamp it feeds. To make the pulse
+ * real, a temporary block of redstone is placed next to every block that consumes a signal. The
+ * engine then does the rest - the wire really powers what it is connected to, dispensers really
+ * dispense, crafters really craft, note blocks really play and pistons really push. The
+ * temporary blocks are removed again when the pulse ends, and the original states are restored.
+ *
+ * <p>The sphere ignores walls and line of sight: anything inside the radius is affected.
  *
  * <p>{@link #sweep} does the work for both the ability and {@code /trims empdebug}, so the
  * debug output describes exactly what the ability does.
  */
 public final class RedstoneEmp implements Ability {
+
+    /**
+     * Blocks that consume a redstone signal. A temporary power source is placed next to these so
+     * the engine really reacts to them.
+     */
+    private static final Set<Material> CONSUMERS = Set.of(
+            Material.REDSTONE_WIRE,
+            Material.REDSTONE_LAMP,
+            Material.COPPER_BULB,
+            Material.DISPENSER,
+            Material.DROPPER,
+            Material.PISTON,
+            Material.STICKY_PISTON,
+            Material.NOTE_BLOCK,
+            Material.OBSERVER,
+            Material.SCULK_SENSOR,
+            Material.CALIBRATED_SCULK_SENSOR,
+            Material.CRAFTER,
+            Material.DAYLIGHT_DETECTOR,
+            Material.REPEATER,
+            Material.COMPARATOR);
+
+    /** Where a temporary power source may go, in order of preference. */
+    private static final int[][] SOURCE_OFFSETS = {
+            {0, 1, 0},
+            {1, 0, 0},
+            {-1, 0, 0},
+            {0, 0, 1},
+            {0, 0, -1},
+            {0, -1, 0}
+    };
 
     /** One block the pulse touched (or, in a dry run, would have touched). */
     public record Change(int x, int y, int z, String material, String kind,
@@ -104,18 +142,17 @@ public final class RedstoneEmp implements Ability {
         Location centre = player.getLocation().add(0, 0.9, 0);
 
         SweepResult result = sweep(world, centre, radius, true);
+        // Real power sources, so the vanilla engine actually reacts to the pulse.
+        List<Block> sources = placeSources(world, new ArrayList<>(result.applied().keySet()),
+                maxSources());
         prime(world, player, result.tnt(), fuseTicks());
-        // Push the new states to the clients by hand: a one tick pulse is otherwise invisible,
-        // and the server does not always send an update for a block that was flipped directly.
+        // Push the new states to the clients by hand: a short pulse is otherwise invisible, and
+        // the server does not always send an update for a block that was flipped directly.
         notifyClients(world, result.applied());
-        restoreLater(result.previous(), pulseTicks());
+        hideSources(world, sources);
+        restoreLater(result.previous(), sources, pulseTicks());
         feedback(world, centre, radius);
         return true;
-    }
-
-    /** How long the pulse holds before the blocks are restored. 20 ticks = one second. */
-    public int pulseTicks() {
-        return Math.max(1, plugin.getConfig().getInt("abilities.redstone.pulse-ticks", 20));
     }
 
     /**
@@ -208,6 +245,100 @@ public final class RedstoneEmp implements Ability {
     }
 
     /**
+     * Places a temporary block of redstone next to every block that consumes a signal, so the
+     * vanilla redstone engine really powers it.
+     *
+     * @return the temporary blocks that were placed (they have to be removed again)
+     */
+    public List<Block> placeSources(World world, List<Block> targets, int cap) {
+        List<Block> placed = new ArrayList<>();
+        if (!realSources() || cap <= 0) {
+            return placed;
+        }
+        Set<Long> used = new HashSet<>();
+        for (Block target : targets) {
+            if (placed.size() >= cap) {
+                break;
+            }
+            if (!CONSUMERS.contains(target.getType())) {
+                continue;
+            }
+            Block cell = findSourceCell(world, target, used);
+            if (cell == null) {
+                continue;
+            }
+            used.add(cellKey(cell));
+            // Physics on: the engine has to be told that something changed, otherwise the wire
+            // never recalculates and stays unpowered.
+            cell.setType(Material.REDSTONE_BLOCK, true);
+            placed.add(cell);
+        }
+        return placed;
+    }
+
+    /** Finds a free cell next to {@code target} for a temporary power source. */
+    private Block findSourceCell(World world, Block target, Set<Long> used) {
+        // First pass: only cells that cannot be seen from above, so the source stays out of
+        // sight. Second pass: any free cell, still hidden from the clients.
+        for (int pass = 0; pass < 2; pass++) {
+            for (int[] offset : SOURCE_OFFSETS) {
+                int x = target.getX() + offset[0];
+                int y = target.getY() + offset[1];
+                int z = target.getZ() + offset[2];
+                if (y < world.getMinHeight() || y >= world.getMaxHeight()) {
+                    continue;
+                }
+                if (!world.isChunkLoaded(x >> 4, z >> 4)) {
+                    continue;
+                }
+                Block cell = world.getBlockAt(x, y, z);
+                // Only air: a source must never destroy what is already there.
+                if (!cell.isEmpty()) {
+                    continue;
+                }
+                if (used.contains(cellKey(cell))) {
+                    continue;
+                }
+                if (pass == 0 && !concealed(world, x, y, z)) {
+                    continue;
+                }
+                if (cellOccupied(world, x, y, z)) {
+                    continue;
+                }
+                return cell;
+            }
+        }
+        return null;
+    }
+
+    /** True when the cell is covered from above, so nothing of it is visible in the world. */
+    private boolean concealed(World world, int x, int y, int z) {
+        if (y + 1 >= world.getMaxHeight()) {
+            return false;
+        }
+        Block above = world.getBlockAt(x, y + 1, z);
+        return above.getType().isSolid() || above.isLiquid();
+    }
+
+    /** True when a player or mob is standing in that cell (a source would push them). */
+    private boolean cellOccupied(World world, int x, int y, int z) {
+        Location centre = new Location(world, x + 0.5, y + 0.5, z + 0.5);
+        for (Entity entity : world.getNearbyEntities(centre, 0.9, 0.9, 0.9)) {
+            Location location = entity.getLocation();
+            if (location.getX() > x - 0.4 && location.getX() < x + 1.4
+                    && location.getY() > y - 0.4 && location.getY() < y + 1.4
+                    && location.getZ() > z - 0.4 && location.getZ() < z + 1.4) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static long cellKey(Block block) {
+        return ((long) block.getX() << 38) ^ ((long) block.getY() << 19) ^ block.getZ();
+    }
+
+    /**
      * @return the powered variant of this block data; {@code kind} is null when the block carries
      *         no power state, {@code changed} is false when it is already in the wanted state
      */
@@ -230,7 +361,7 @@ public final class RedstoneEmp implements Ability {
                 changed = true;
             }
         }
-        if (result instanceof Lightable lightable && isRedstoneLight(result.getMaterial())) {
+        if (result instanceof Lightable lightable && lightsUp(result.getMaterial())) {
             kinds.add("Lightable");
             if (!lightable.isLit()) {
                 lightable.setLit(true);
@@ -244,14 +375,22 @@ public final class RedstoneEmp implements Ability {
                 changed = true;
             }
         }
+        if (result instanceof Piston piston) {
+            kinds.add("Piston");
+            if (!piston.isExtended()) {
+                piston.setExtended(true);
+                changed = true;
+            }
+        }
         return new Powered(result, kinds.isEmpty() ? null : String.join("+", kinds), changed);
     }
 
-    /** Only redstone lights are lit; campfires, candles and furnaces are not part of the pulse. */
-    private static boolean isRedstoneLight(Material material) {
+    /** Only blocks that really light up when they are powered. */
+    private static boolean lightsUp(Material material) {
         return material == Material.REDSTONE_LAMP
                 || material == Material.REDSTONE_TORCH
-                || material == Material.REDSTONE_WALL_TORCH;
+                || material == Material.REDSTONE_WALL_TORCH
+                || material == Material.COPPER_BULB;
     }
 
     /** Short "before -> after" description of the states this plugin cares about. */
@@ -279,10 +418,31 @@ public final class RedstoneEmp implements Ability {
             }
             builder.append("open=").append(openable.isOpen());
         }
+        if (data instanceof Piston piston) {
+            if (builder.length() > 0) {
+                builder.append(' ');
+            }
+            builder.append("extended=").append(piston.isExtended());
+        }
         if (builder.length() == 0) {
             builder.append(data.getMaterial().name());
         }
         return builder.toString();
+    }
+
+    /** How long the pulse holds before the blocks are restored. 20 ticks = one second. */
+    public int pulseTicks() {
+        return Math.max(1, plugin.getConfig().getInt("abilities.redstone.pulse-ticks", 20));
+    }
+
+    /** Whether temporary power sources are placed so the engine really reacts. */
+    public boolean realSources() {
+        return plugin.getConfig().getBoolean("abilities.redstone.real-sources", true);
+    }
+
+    /** Safety cap on how many temporary blocks one pulse may place. */
+    public int maxSources() {
+        return Math.max(0, plugin.getConfig().getInt("abilities.redstone.max-sources", 64));
     }
 
     private int fuseTicks() {
@@ -299,14 +459,22 @@ public final class RedstoneEmp implements Ability {
         }
     }
 
-    /** Puts every flipped block back exactly {@code ticks} ticks later. */
-    public void restoreLater(Map<Block, BlockData> previous, int ticks) {
-        if (previous.isEmpty()) {
-            return;
-        }
+    /**
+     * Removes the temporary power sources and puts every flipped block back exactly
+     * {@code ticks} ticks later.
+     */
+    public void restoreLater(Map<Block, BlockData> previous, List<Block> sources, int ticks) {
         long delay = Math.max(1L, ticks);
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             World world = null;
+            // Remove the sources first: with them gone the engine recalculates and the pulse
+            // really ends.
+            for (Block source : sources) {
+                world = source.getWorld();
+                if (source.getType() == Material.REDSTONE_BLOCK) {
+                    source.setType(Material.AIR, true);
+                }
+            }
             for (Map.Entry<Block, BlockData> entry : previous.entrySet()) {
                 Block block = entry.getKey();
                 BlockData original = entry.getValue();
@@ -315,7 +483,6 @@ public final class RedstoneEmp implements Ability {
                     continue;
                 }
                 block.setBlockData(original, false);
-                world = block.getWorld();
             }
             // Tell the clients as well, so the pulse visibly ends.
             if (world != null) {
@@ -341,6 +508,24 @@ public final class RedstoneEmp implements Ability {
                     continue;
                 }
                 viewer.sendBlockChange(block.getLocation(), entry.getValue());
+            }
+        }
+    }
+
+    /** Hides the temporary power sources from the clients: they are an implementation detail. */
+    public void hideSources(World world, List<Block> sources) {
+        if (sources.isEmpty()) {
+            return;
+        }
+        double range = 64.0 * 64.0;
+        BlockData air = Material.AIR.createBlockData();
+        for (Player viewer : world.getPlayers()) {
+            Location eye = viewer.getLocation();
+            for (Block source : sources) {
+                if (eye.distanceSquared(source.getLocation().toCenterLocation()) > range) {
+                    continue;
+                }
+                viewer.sendBlockChange(source.getLocation(), air);
             }
         }
     }

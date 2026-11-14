@@ -94,6 +94,13 @@ abilities:
     # How long the pulse holds the blocks in their powered state before they are restored.
     # 20 ticks = one second. A single tick is invisible, so keep it at 20 or more.
     pulse-ticks: 20
+    # Place a temporary block of redstone next to every block that consumes a signal, so the
+    # vanilla redstone engine really reacts: dust powers what it is wired to, dispensers
+    # dispense, crafters craft, note blocks play, pistons push. The temporary blocks are
+    # removed again when the pulse ends.
+    real-sources: true
+    # Safety cap on how many temporary blocks a single pulse may place.
+    max-sources: 64
     # Sphere radius in blocks per tier: 4, 6, 8, 10 (= 4 + 2 per tier).
     radius:
       "1": 4.0
