@@ -77,6 +77,7 @@ public final class EmpDebugCommand {
         SweepResult result = plugin.redstoneEmp().sweep(world, centre, radius, apply);
 
         if (apply) {
+            plugin.redstoneEmp().notifyClients(world, result.applied());
             plugin.redstoneEmp().restoreLater(result.previous(), ticks);
         }
 

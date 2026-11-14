@@ -1,5 +1,6 @@
 package com.Speedymr01.AugmentedTrims.listener;
 
+import java.util.Locale;
 import java.util.Optional;
 
 import com.Speedymr01.AugmentedTrims.AugmentedTrims;
@@ -93,20 +94,39 @@ public final class StarListener implements Listener {
         }
 
         int pieces = TrimScanner.countEquipped(player).getOrDefault(NamespacedKey.minecraft(material), 0);
-        if (pieces <= 0 || cooldowns.isOnCooldown(player, material)) {
+        int tier = Math.min(4, pieces);
+        if (pieces <= 0) {
+            // Without matching trim armour the star has no power at all. Saying "on cooldown"
+            // here is what made this look broken.
+            logCast(player, material, pieces, tier, "no-armour");
+            message(player, "messages.ability.no-armour", material);
+            return;
+        }
+        if (cooldowns.isOnCooldown(player, material)) {
+            logCast(player, material, pieces, tier, "cooldown");
             message(player, "messages.ability.on-cooldown");
             return;
         }
 
-        int tier = Math.min(4, pieces);
         if (!ability.get().cast(player, tier)) {
+            logCast(player, material, pieces, tier, "no-target");
             message(player, "messages.ability.no-target");
             return;
         }
+        logCast(player, material, pieces, tier, "ok");
         cooldowns.start(player, material, ability.get().cooldownSeconds(tier));
         cooldowns.reconcile(player, material, true);
         String path = ability.get().successMessagePath(player, tier);
         message(player, path == null ? "messages.ability.activated" : path);
+    }
+
+    /** Every cast attempt is logged, so a "nothing happened" report can be traced. */
+    private void logCast(Player player, String material, int pieces, int tier, String result) {
+        plugin.getLogger().info("CAST player=" + player.getName()
+                + " material=" + material
+                + " pieces=" + pieces
+                + " tier=" + tier
+                + " result=" + result);
     }
 
     // ------------------------------------------------------------- crafting
@@ -217,12 +237,28 @@ public final class StarListener implements Listener {
     }
 
     private void message(Player player, String path) {
+        message(player, path, null);
+    }
+
+    /** @param material when set, {@code %material%} in the message is replaced by it */
+    private void message(Player player, String path, String material) {
         String prefix = plugin.getConfig().getString("messages.prefix", "");
         String text = plugin.getConfig().getString(path);
         if (text == null) {
             // Config written by an older version: fall back to the generic success message.
             text = plugin.getConfig().getString("messages.ability.activated", path);
         }
+        if (material != null) {
+            text = text.replace("%material%", pretty(material));
+        }
         player.sendMessage(LegacyComponentSerializer.legacyAmpersand().deserialize(prefix + text));
+    }
+
+    /** "redstone" -> "Redstone". */
+    private static String pretty(String material) {
+        if (material.isEmpty()) {
+            return material;
+        }
+        return Character.toUpperCase(material.charAt(0)) + material.substring(1).toLowerCase(Locale.ROOT);
     }
 }

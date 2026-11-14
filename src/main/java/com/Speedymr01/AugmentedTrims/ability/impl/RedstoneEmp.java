@@ -50,7 +50,8 @@ public final class RedstoneEmp implements Ability {
     /** Everything one sweep saw. */
     public record SweepResult(int scanned, int air, int liquid,
                               List<Change> changes, Map<String, Integer> skipped,
-                              List<Block> tnt, Map<Block, BlockData> previous) {
+                              List<Block> tnt, Map<Block, BlockData> previous,
+                              Map<Block, BlockData> applied) {
 
         /** Blocks that were written but did not keep the new state. */
         public int stuck() {
@@ -104,9 +105,17 @@ public final class RedstoneEmp implements Ability {
 
         SweepResult result = sweep(world, centre, radius, true);
         prime(world, player, result.tnt(), fuseTicks());
-        restoreLater(result.previous(), 1);
+        // Push the new states to the clients by hand: a one tick pulse is otherwise invisible,
+        // and the server does not always send an update for a block that was flipped directly.
+        notifyClients(world, result.applied());
+        restoreLater(result.previous(), pulseTicks());
         feedback(world, centre, radius);
         return true;
+    }
+
+    /** How long the pulse holds before the blocks are restored. 20 ticks = one second. */
+    public int pulseTicks() {
+        return Math.max(1, plugin.getConfig().getInt("abilities.redstone.pulse-ticks", 20));
     }
 
     /**
@@ -124,6 +133,7 @@ public final class RedstoneEmp implements Ability {
 
         List<Change> changes = new ArrayList<>();
         Map<Block, BlockData> previous = new LinkedHashMap<>();
+        Map<Block, BlockData> applied = new LinkedHashMap<>();
         List<Block> tnt = new ArrayList<>();
         Map<String, Integer> skipped = new LinkedHashMap<>();
         int scanned = 0;
@@ -182,6 +192,7 @@ public final class RedstoneEmp implements Ability {
                         // physics would make the redstone engine recalculate our 15-power wire
                         // straight back down to 0 before the pulse is over.
                         block.setBlockData(powered.data(), false);
+                        applied.put(block, powered.data());
                         // Read back: if the state did not stick, the client will never see it.
                         stuck = !block.getBlockData().equals(powered.data());
                     }
@@ -193,7 +204,7 @@ public final class RedstoneEmp implements Ability {
         }
 
         return new SweepResult(scanned, air, liquid, List.copyOf(changes), skipped,
-                List.copyOf(tnt), previous);
+                List.copyOf(tnt), previous, applied);
     }
 
     /**
@@ -295,6 +306,7 @@ public final class RedstoneEmp implements Ability {
         }
         long delay = Math.max(1L, ticks);
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            World world = null;
             for (Map.Entry<Block, BlockData> entry : previous.entrySet()) {
                 Block block = entry.getKey();
                 BlockData original = entry.getValue();
@@ -303,8 +315,34 @@ public final class RedstoneEmp implements Ability {
                     continue;
                 }
                 block.setBlockData(original, false);
+                world = block.getWorld();
+            }
+            // Tell the clients as well, so the pulse visibly ends.
+            if (world != null) {
+                notifyClients(world, previous);
             }
         }, delay);
+    }
+
+    /**
+     * Sends the given block states to every player nearby, so a flipped block is rendered even
+     * when the server itself did not send an update for it.
+     */
+    public void notifyClients(World world, Map<Block, BlockData> states) {
+        if (states.isEmpty()) {
+            return;
+        }
+        double range = 64.0 * 64.0;
+        for (Player viewer : world.getPlayers()) {
+            Location eye = viewer.getLocation();
+            for (Map.Entry<Block, BlockData> entry : states.entrySet()) {
+                Block block = entry.getKey();
+                if (eye.distanceSquared(block.getLocation().toCenterLocation()) > range) {
+                    continue;
+                }
+                viewer.sendBlockChange(block.getLocation(), entry.getValue());
+            }
+        }
     }
 
     private void feedback(World world, Location centre, double radius) {

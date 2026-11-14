@@ -91,6 +91,9 @@ abilities:
     cooldown: 55
     # Fuse given to TNT the pulse ignites (vanilla default is 80).
     tnt-fuse-ticks: 80
+    # How long the pulse holds the blocks in their powered state before they are restored.
+    # 20 ticks = one second. A single tick is invisible, so keep it at 20 or more.
+    pulse-ticks: 20
     # Sphere radius in blocks per tier: 4, 6, 8, 10 (= 4 + 2 per tier).
     radius:
       "1": 4.0
@@ -138,6 +141,7 @@ messages:
   ability:
     activated: "&aAbility activated."
     on-cooldown: "&cAbility on cooldown."
+    no-armour: "&cYou need %material% trim armour to power this star."
     not-attuned: "&cThis star is not attuned."
     no-target: "&cNo block in range."
     aura-on: "&5Dread aura enabled."
