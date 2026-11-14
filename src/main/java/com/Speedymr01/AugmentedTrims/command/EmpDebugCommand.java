@@ -96,6 +96,7 @@ public final class EmpDebugCommand {
                 plugin.redstoneEmp().hideSources(world, sources);
             }
             plugin.redstoneEmp().notifyClients(world, result.applied());
+            plugin.redstoneEmp().showRadius(world, centre, radius);
             plugin.redstoneEmp().restoreLater(result, sources, ticks);
         }
 

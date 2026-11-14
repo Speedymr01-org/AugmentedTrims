@@ -12,6 +12,7 @@ import java.util.Set;
 import com.Speedymr01.AugmentedTrims.ability.Ability;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Color;
 import org.bukkit.Instrument;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -35,6 +36,7 @@ import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TNTPrimed;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitRunnable;
 
 /**
  * Redstone - EMP.
@@ -197,6 +199,8 @@ public final class RedstoneEmp implements Ability {
         }
 
         prime(world, player, result.tnt(), fuseTicks());
+        // Show how far the pulse reaches: a wall of red sparks that sinks and fades.
+        showRadius(world, centre, radius);
         // Push the new states to the clients by hand: a short pulse is otherwise invisible, and
         // the server does not always send an update for a block that was flipped directly.
         notifyClients(world, result.applied());
@@ -762,6 +766,80 @@ public final class RedstoneEmp implements Ability {
         world.playSound(centre, Sound.BLOCK_BEACON_DEACTIVATE, 1.2f, 0.7f);
         world.spawnParticle(Particle.ELECTRIC_SPARK, centre, 120,
                 radius * 0.5, radius * 0.35, radius * 0.5, 0.1);
+    }
+
+    // ------------------------------------------------------------- range visual
+
+    /** How long the sparks of the range wall live, in ticks. */
+    private static final int SHELL_TICKS = 30;
+
+    /** How fast the sparks sink at the start, in blocks per tick. They get slower from there. */
+    private static final double SHELL_SPEED = 0.09;
+
+    /**
+     * Shows the radius of the pulse as a wall of red sparks.
+     *
+     * <p>The sparks appear on the shell of the sphere at once, then sink straight down - no
+     * sideways movement at all - and get slower and slower until they fade away, like the
+     * sparks of a firework. Every tick the sparks are drawn again a little lower, so the old
+     * ones stay where they were and fade on their own.
+     */
+    public void showRadius(World world, Location centre, double radius) {
+        if (!plugin.getConfig().getBoolean("abilities.redstone.range-visual", true)) {
+            return;
+        }
+        Particle.DustOptions dust = new Particle.DustOptions(Color.fromRGB(255, 45, 15), 1.1f);
+        List<double[]> points = shellPoints(world, centre, radius);
+
+        new BukkitRunnable() {
+            private int tick;
+
+            @Override
+            public void run() {
+                double fall = sink(tick);
+                for (double[] point : points) {
+                    Location at = centre.clone().add(point[0] * radius, point[1] * radius,
+                            point[2] * radius);
+                    at.add(0.0, -fall, 0.0);
+                    world.spawnParticle(Particle.DUST, at, 3, 0.18, 0.18, 0.18, dust);
+                }
+                tick++;
+                if (tick >= SHELL_TICKS) {
+                    cancel();
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    /**
+     * How far the sparks have sunk after {@code tick} ticks.
+     *
+     * <p>They start slow and get slower all the time, like the sparks of a firework: the speed
+     * is {@code v(t) = v0 * (1 - t / T)}, so they come to rest and fade instead of dropping
+     * away.
+     */
+    private static double sink(int tick) {
+        double t = Math.min(tick, (double) SHELL_TICKS);
+        return SHELL_SPEED * (t - (t * t) / (2.0 * SHELL_TICKS));
+    }
+
+    /**
+     * The points the sparks are drawn on: evenly spread over the shell of the sphere, a little
+     * denser the bigger the sphere is.
+     */
+    private List<double[]> shellPoints(World world, Location centre, double radius) {
+        int wanted = plugin.getConfig().getInt("abilities.redstone.range-visual-points", 120);
+        int count = Math.max(24, Math.min(400, wanted + (int) (radius * radius * 1.5)));
+        double golden = Math.PI * (3.0 - Math.sqrt(5.0));
+        List<double[]> points = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            // Spread the points over the sphere with the golden angle.
+            double y = 1.0 - (i / (double) Math.max(1, count - 1)) * 2.0;
+            double ring = Math.sqrt(Math.max(0.0, 1.0 - y * y));
+            double angle = golden * i;
+            points.add(new double[] {Math.cos(angle) * ring, y, Math.sin(angle) * ring});
+        }
+        return points;
     }
 
     /** Tier radius: 4 blocks at tier 1, +2 per tier (config overrides per tier). */
