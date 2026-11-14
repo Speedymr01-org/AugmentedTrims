@@ -146,8 +146,9 @@ abilities:
     # Show how far the pulse reaches: a wall of red sparks on the shell of the sphere. They
     # appear at once, sink straight down without any sideways movement, slow down and fade.
     range-visual: true
-    # How many sparks sit on the wall. A bigger radius gets a few more on top of that.
-    range-visual-points: 120
+    # How many sparks sit on one block of the wall. A bigger radius gets a bigger wall, but the
+    # spacing between the sparks stays the same.
+    range-visual-density: 0.8
     # Sphere radius in blocks per tier: 4, 6, 8, 10 (= 4 + 2 per tier).
     radius:
       "1": 4.0

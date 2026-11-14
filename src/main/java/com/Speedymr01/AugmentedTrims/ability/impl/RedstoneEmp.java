@@ -801,7 +801,7 @@ public final class RedstoneEmp implements Ability {
                     Location at = centre.clone().add(point[0] * radius, point[1] * radius,
                             point[2] * radius);
                     at.add(0.0, -fall, 0.0);
-                    world.spawnParticle(Particle.DUST, at, 3, 0.18, 0.18, 0.18, dust);
+                    world.spawnParticle(Particle.DUST, at, 2, 0.15, 0.15, 0.15, dust);
                 }
                 tick++;
                 if (tick >= SHELL_TICKS) {
@@ -824,12 +824,17 @@ public final class RedstoneEmp implements Ability {
     }
 
     /**
-     * The points the sparks are drawn on: evenly spread over the shell of the sphere, a little
-     * denser the bigger the sphere is.
+     * The points the sparks are drawn on: evenly spread over the shell of the sphere.
+     *
+     * <p>The density is the same on every radius, so a bigger pulse gets a bigger wall with the
+     * same spacing between the sparks. The surface of the sphere decides how many there are.
      */
     private List<double[]> shellPoints(World world, Location centre, double radius) {
-        int wanted = plugin.getConfig().getInt("abilities.redstone.range-visual-points", 120);
-        int count = Math.max(24, Math.min(400, wanted + (int) (radius * radius * 1.5)));
+        double density = plugin.getConfig()
+                .getDouble("abilities.redstone.range-visual-density", 0.8);
+        density = Math.max(0.05, Math.min(5.0, density));
+        double area = 4.0 * Math.PI * radius * radius;
+        int count = Math.max(16, Math.min(1400, (int) Math.round(area * density)));
         double golden = Math.PI * (3.0 - Math.sqrt(5.0));
         List<double[]> points = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
