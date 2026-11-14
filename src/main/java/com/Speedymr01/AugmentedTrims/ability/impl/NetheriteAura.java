@@ -10,12 +10,17 @@ import com.Speedymr01.AugmentedTrims.trim.TrimScanner;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Color;
 import org.bukkit.GameMode;
+import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Particle;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
 /**
@@ -88,6 +93,47 @@ public final class NetheriteAura implements Ability {
         }
     }
 
+    /**
+     * Shows how far the aura reaches: a ring of dark sparks around the wearer.
+     *
+     * <p>The ring is horizontal, sparse and every spark sinks a little before it fades. The
+     * spacing and the distance they sink are configurable.
+     */
+    private void showRing(Player wearer, double radius) {
+        var config = plugin.getConfig();
+        if (!config.getBoolean("abilities.netherite.visual", true)) {
+            return;
+        }
+        double spacing = Math.max(0.25, config.getDouble("abilities.netherite.visual-spacing", 1.5));
+        double fall = config.getDouble("abilities.netherite.visual-fall", 0.2);
+        int ticks = Math.max(1, config.getInt("abilities.netherite.visual-ticks", 8));
+
+        World world = wearer.getWorld();
+        Location centre = wearer.getLocation();
+        int points = Math.max(4, (int) Math.round(2.0 * Math.PI * radius / spacing));
+        Particle.DustOptions dust = new Particle.DustOptions(Color.fromRGB(18, 18, 22), 1.0f);
+
+        new BukkitRunnable() {
+            private int tick;
+
+            @Override
+            public void run() {
+                double drop = fall * (tick / (double) ticks);
+                for (int i = 0; i < points; i++) {
+                    double angle = 2.0 * Math.PI * i / points;
+                    Location at = centre.clone().add(Math.cos(angle) * radius, 0.1,
+                            Math.sin(angle) * radius);
+                    at.add(0.0, -drop, 0.0);
+                    world.spawnParticle(Particle.DUST, at, 1, 0, 0, 0, dust);
+                }
+                tick++;
+                if (tick >= ticks) {
+                    cancel();
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
     /** Applies one second of aura from this wearer. @return false when they no longer qualify */
     private boolean apply(Player wearer) {
         int pieces = TrimScanner.countEquipped(wearer).getOrDefault(NETHERITE, 0);
@@ -102,6 +148,8 @@ public final class NetheriteAura implements Ability {
         int duration = Math.max(20, config.getInt("abilities.netherite.effect-duration-ticks", 100));
         int amplifier = Math.max(0, config.getInt("abilities.netherite.amplifier", 0));
         boolean affectsSelf = config.getBoolean("abilities.netherite.affect-self", false);
+
+        showRing(wearer, radius);
 
         for (Player target : wearer.getWorld().getPlayers()) {
             if (target.equals(wearer) && !affectsSelf) {

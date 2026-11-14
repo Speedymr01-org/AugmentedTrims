@@ -180,6 +180,14 @@ abilities:
       "2": 2.5
       "3": 4.0
       "4": 5.5
+    # Show how far the aura reaches: a sparse ring of dark sparks around the wearer.
+    visual: true
+    # How far apart the sparks sit on the ring, in blocks. Bigger means sparser.
+    visual-spacing: 1.5
+    # How far the sparks sink before they fade, in blocks.
+    visual-fall: 0.2
+    # How long the ring takes to sink and fade, in ticks.
+    visual-ticks: 8
 
 messages:
   prefix: "&8[&6AugmentedTrims&8] &r"
