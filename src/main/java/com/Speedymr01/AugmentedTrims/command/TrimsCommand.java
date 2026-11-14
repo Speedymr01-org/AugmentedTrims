@@ -66,6 +66,12 @@ public final class TrimsCommand implements CommandExecutor, TabCompleter {
             case "info" -> {
                 return showInfo(sender, args);
             }
+            case "empdebug" -> {
+                if (!admin(sender)) {
+                    return true;
+                }
+                return new EmpDebugCommand(plugin).run(sender, args);
+            }
             default -> {
                 sender.sendMessage(message("messages.no-permission"));
                 return true;

@@ -74,6 +74,7 @@ main hand to cast — a green `Ability activated.` or a red `Ability on cooldown
 | `/trims reload` | `augmentedtrims.admin` | Reload `config.yml` + `trims.yml` |
 | `/trims give <formless\|material> [player]` | `augmentedtrims.admin` | Give a formless or attuned star |
 | `/trims cooldown [player]` | `augmentedtrims.admin` | Clear ability cooldowns |
+| `/trims empdebug [apply] [radius] [ticks]` | `augmentedtrims.admin` | Debug the redstone EMP: lists every block the pulse would flip. `apply` really flips them and holds them for `ticks` (default 40) |
 
 Aliases: `/trim`, `/augtrims`
 

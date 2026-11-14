@@ -45,6 +45,7 @@ public final class AugmentedTrims extends JavaPlugin {
     private StarCooldownService cooldowns;
     private AbilityManager abilityManager;
     private StarRecipes recipes;
+    private RedstoneEmp redstoneEmp;
     private BukkitTask refreshTask;
 
     @Override
@@ -68,7 +69,8 @@ public final class AugmentedTrims extends JavaPlugin {
         abilityManager.register(new CopperThunderstrike(this));
         abilityManager.register(new ResinCobweb(this));
         abilityManager.register(new NetheriteAura(this));
-        abilityManager.register(new RedstoneEmp(this));
+        this.redstoneEmp = new RedstoneEmp(this);
+        abilityManager.register(redstoneEmp);
 
         this.recipes = new StarRecipes(this, starFactory, abilityManager);
         recipes.register();
@@ -156,5 +158,10 @@ public final class AugmentedTrims extends JavaPlugin {
 
     public StarRecipes recipes() {
         return recipes;
+    }
+
+    /** The redstone EMP ability, kept around so {@code /trims empdebug} can inspect it. */
+    public RedstoneEmp redstoneEmp() {
+        return redstoneEmp;
     }
 }
