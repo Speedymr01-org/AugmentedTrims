@@ -36,10 +36,18 @@ abilities:
     # false = vanilla lightning damage, which armour DOES reduce
     ignore-armour: true
     tiers:
-      "1": { damage: 15.0, cooldown: 55 }
-      "2": { damage: 15.0, cooldown: 55 }
-      "3": { damage: 15.0, cooldown: 55 }
-      "4": { damage: 15.0, cooldown: 55 }
+      "1":
+        damage: 15.0
+        cooldown: 55
+      "2":
+        damage: 15.0
+        cooldown: 55
+      "3":
+        damage: 15.0
+        cooldown: 55
+      "4":
+        damage: 15.0
+        cooldown: 55
 
   # Iron - Arrow Torrent: 4 arrows/second tracking the crosshair, blockable by terrain.
   iron:
@@ -48,10 +56,22 @@ abilities:
       spread-degrees: 1.5
       damage: 4.0
     tiers:
-      "1": { arrows-per-second: 2, duration-seconds: 3, cooldown: 55 }
-      "2": { arrows-per-second: 3, duration-seconds: 4, cooldown: 50 }
-      "3": { arrows-per-second: 3, duration-seconds: 5, cooldown: 45 }
-      "4": { arrows-per-second: 4, duration-seconds: 5, cooldown: 40 }
+      "1":
+        arrows-per-second: 2
+        duration-seconds: 3
+        cooldown: 55
+      "2":
+        arrows-per-second: 3
+        duration-seconds: 4
+        cooldown: 50
+      "3":
+        arrows-per-second: 3
+        duration-seconds: 5
+        cooldown: 45
+      "4":
+        arrows-per-second: 4
+        duration-seconds: 5
+        cooldown: 40
 
   # Quartz - Refract: incoming projectiles bounce back along a solved ballistic arc.
   # Tiers 1-3 solve the arc once; tier 4 re-solves every tick (homing).
@@ -64,10 +84,26 @@ abilities:
         min-flight-ticks: 8
         max-flight-ticks: 40
     tiers:
-      "1": { duration-seconds: 2.0, max-reflections: 2, cooldown: 90, homing: false }
-      "2": { duration-seconds: 2.5, max-reflections: 3, cooldown: 80, homing: false }
-      "3": { duration-seconds: 3.0, max-reflections: 4, cooldown: 70, homing: false }
-      "4": { duration-seconds: 4.0, max-reflections: 5, cooldown: 60, homing: true }
+      "1":
+        duration-seconds: 2.0
+        max-reflections: 2
+        cooldown: 90
+        homing: false
+      "2":
+        duration-seconds: 2.5
+        max-reflections: 3
+        cooldown: 80
+        homing: false
+      "3":
+        duration-seconds: 3.0
+        max-reflections: 4
+        cooldown: 70
+        homing: false
+      "4":
+        duration-seconds: 4.0
+        max-reflections: 5
+        cooldown: 60
+        homing: true
 
   # Resin - Cobweb Shot: one cobweb thrown along your view direction.
   # It becomes a real cobweb block on the first surface it touches, deals no damage and
@@ -77,10 +113,14 @@ abilities:
     gravity: 0.04
     max-flight-ticks: 120
     tiers:
-      "1": { cooldown: 30 }
-      "2": { cooldown: 23 }
-      "3": { cooldown: 17 }
-      "4": { cooldown: 10 }
+      "1":
+        cooldown: 30
+      "2":
+        cooldown: 23
+      "3":
+        cooldown: 17
+      "4":
+        cooldown: 10
 
   # Redstone - EMP: a one tick pulse through every block in a 3D sphere around you.
   # Redstone wire jumps to full power, levers/buttons/rails read as powered, redstone lamps and
