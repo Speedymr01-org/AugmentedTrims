@@ -9,7 +9,10 @@ import com.Speedymr01.AugmentedTrims.ability.impl.RedstoneEmp;
 import com.Speedymr01.AugmentedTrims.ability.impl.RedstoneEmp.Change;
 import com.Speedymr01.AugmentedTrims.ability.impl.RedstoneEmp.SweepResult;
 
+import com.Speedymr01.AugmentedTrims.trim.TrimScanner;
+
 import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
@@ -47,7 +50,12 @@ public final class EmpDebugCommand {
         }
 
         boolean apply = false;
-        double radius = plugin.redstoneEmp().radius(1);
+        // Use the radius the player's own star would use, so the debug shows exactly what the
+        // ability would reach.
+        int pieces = TrimScanner.countEquipped(player)
+                .getOrDefault(NamespacedKey.minecraft("redstone"), 0);
+        int tier = Math.min(4, pieces);
+        double radius = plugin.redstoneEmp().radius(tier);
         int ticks = 40;
         List<Double> numbers = new ArrayList<>();
         for (int i = 1; i < args.length; i++) {
@@ -78,7 +86,8 @@ public final class EmpDebugCommand {
         SweepResult result = plugin.redstoneEmp().sweep(world, centre, radius, apply);
 
         List<Block> sources = List.of();
-        List<RedstoneEmp.Reach> reached = List.of();
+        // The network is simulated either way: in a dry run it only says what it would reach.
+        List<RedstoneEmp.Reach> reached = plugin.redstoneEmp().propagate(world, result, apply);
         if (apply) {
             // Same as the ability: real power sources, so the engine reacts the same way.
             if (plugin.redstoneEmp().realSources()) {
@@ -86,17 +95,16 @@ public final class EmpDebugCommand {
                         new ArrayList<>(result.applied().keySet()), plugin.redstoneEmp().maxSources());
                 plugin.redstoneEmp().hideSources(world, sources);
             }
-            reached = plugin.redstoneEmp().propagate(world, result);
             plugin.redstoneEmp().notifyClients(world, result.applied());
             plugin.redstoneEmp().restoreLater(result.previous(), sources, ticks);
         }
 
-        report(player, radius, ticks, apply, result, sources, reached);
+        report(player, radius, tier, ticks, apply, result, sources, reached);
         return true;
     }
 
-    private void report(Player player, double radius, int ticks, boolean apply, SweepResult result,
-                        List<Block> sources, List<RedstoneEmp.Reach> reached) {
+    private void report(Player player, double radius, int tier, int ticks, boolean apply,
+                        SweepResult result, List<Block> sources, List<RedstoneEmp.Reach> reached) {
         String mode = apply ? "APPLY" : "DRY";
         StringBuilder head = new StringBuilder();
         head.append("player=").append(player.getName())
@@ -105,6 +113,7 @@ public final class EmpDebugCommand {
                 .append(',').append(player.getLocation().getBlockY())
                 .append(',').append(player.getLocation().getBlockZ())
                 .append(" radius=").append(radius)
+                .append(" tier=").append(tier)
                 .append(" mode=").append(mode);
         if (apply) {
             head.append(" holdTicks=").append(ticks);
@@ -112,6 +121,8 @@ public final class EmpDebugCommand {
         head.append(" scanned=").append(result.scanned())
                 .append(" air=").append(result.air())
                 .append(" liquid=").append(result.liquid())
+                .append(" changes=").append(result.changes().size())
+                .append(" wires=").append(result.wires().size())
                 .append(" tnt=").append(result.tnt().size())
                 .append(" actions=").append(result.actions().size())
                 .append(" reached=").append(reached.size())
@@ -155,10 +166,10 @@ public final class EmpDebugCommand {
         }
 
         player.sendMessage(Component.text("[EMP] ", NamedTextColor.DARK_RED)
-                .append(Component.text(mode + " radius " + radius
+                .append(Component.text(mode + " tier " + tier + " radius " + radius
                         + (apply ? " (held " + ticks + " ticks)" : ""), NamedTextColor.GRAY))
-                .append(Component.text(" | scanned " + result.scanned()
-                        + " | changes " + result.changes().size()
+                .append(Component.text(" | changes " + result.changes().size()
+                        + " | wires " + result.wires().size()
                         + " | actions " + result.actions().size()
                         + " | reached " + reached.size()
                         + " | tnt " + result.tnt().size()

@@ -119,7 +119,7 @@ public final class RedstoneEmp implements Ability {
     /** Everything one sweep saw. */
     public record SweepResult(int scanned, int air, int liquid,
                               List<Change> changes, Map<String, Integer> skipped,
-                              List<Block> tnt, List<Block> actions,
+                              List<Block> tnt, List<Block> actions, List<Block> wires,
                               Map<Block, BlockData> previous, Map<Block, BlockData> applied) {
 
         /** Blocks that were written but did not keep the new state. */
@@ -180,7 +180,7 @@ public final class RedstoneEmp implements Ability {
         }
 
         // The pulse travels along the wires and powers what they feed.
-        List<Reach> reached = propagate(world, result);
+        List<Reach> reached = propagate(world, result, true);
         for (Reach reach : reached) {
             if (!result.actions().contains(reach.block())) {
                 fire(world, reach.block());
@@ -214,6 +214,7 @@ public final class RedstoneEmp implements Ability {
         Map<Block, BlockData> applied = new LinkedHashMap<>();
         List<Block> tnt = new ArrayList<>();
         List<Block> actions = new ArrayList<>();
+        List<Block> wires = new ArrayList<>();
         Map<String, Integer> skipped = new LinkedHashMap<>();
         int scanned = 0;
         int air = 0;
@@ -256,6 +257,10 @@ public final class RedstoneEmp implements Ability {
                         // Nothing to flip, but it reacts to power.
                         actions.add(block);
                     }
+                    if (original.getMaterial() == Material.REDSTONE_WIRE) {
+                        // Wires carry the pulse further than the sphere.
+                        wires.add(block);
+                    }
                     Powered powered = power(original);
                     if (powered.kind() == null) {
                         // Not a block that carries a power state at all.
@@ -287,7 +292,7 @@ public final class RedstoneEmp implements Ability {
         }
 
         return new SweepResult(scanned, air, liquid, List.copyOf(changes), skipped,
-                List.copyOf(tnt), List.copyOf(actions), previous, applied);
+                List.copyOf(tnt), List.copyOf(actions), List.copyOf(wires), previous, applied);
     }
 
     /**
@@ -296,15 +301,16 @@ public final class RedstoneEmp implements Ability {
      * <p>Every wire inside the sphere is a source with power 15. From there the power travels
      * along the wires, losing one per wire, and everything next to a live wire is powered -
      * including the blocks outside the sphere that the wires feed.
+     *
+     * @param apply when false nothing in the world is changed, the result only says what the
+     *              network would reach
      */
-    public List<Reach> propagate(World world, SweepResult result) {
+    public List<Reach> propagate(World world, SweepResult result, boolean apply) {
         Map<Block, Integer> live = new LinkedHashMap<>();
         Deque<Block> queue = new ArrayDeque<>();
-        for (Block block : result.applied().keySet()) {
-            if (block.getType() == Material.REDSTONE_WIRE) {
-                live.put(block, MAX_POWER);
-                queue.add(block);
-            }
+        for (Block block : result.wires()) {
+            live.put(block, MAX_POWER);
+            queue.add(block);
         }
         Set<Block> visited = new HashSet<>(live.keySet());
         List<Reach> reached = new ArrayList<>();
@@ -327,27 +333,30 @@ public final class RedstoneEmp implements Ability {
                     live.put(neighbour, next);
                     queue.add(neighbour);
                     // The wire outside the sphere lights up as well, and is restored afterwards.
-                    BlockData original = neighbour.getBlockData();
-                    BlockData powered = power(original).data();
-                    if (!original.equals(powered)) {
-                        result.previous().put(neighbour, original);
-                        neighbour.setBlockData(powered, false);
-                        result.applied().put(neighbour, powered);
-                    }
+                    flip(neighbour, result, apply);
                 } else if (isConsumer(neighbour) && fired.add(neighbour)) {
                     // Powered: light it up, open it, extend it.
-                    BlockData original = neighbour.getBlockData();
-                    BlockData powered = power(original).data();
-                    if (!original.equals(powered)) {
-                        result.previous().put(neighbour, original);
-                        neighbour.setBlockData(powered, false);
-                        result.applied().put(neighbour, powered);
-                    }
+                    flip(neighbour, result, apply);
                     reached.add(new Reach(neighbour, power, "powered"));
                 }
             }
         }
         return reached;
+    }
+
+    /** Puts a block into its powered state and remembers the old one for the restore. */
+    private void flip(Block block, SweepResult result, boolean apply) {
+        BlockData original = block.getBlockData();
+        BlockData powered = power(original).data();
+        if (original.equals(powered)) {
+            return;
+        }
+        if (!apply) {
+            return;
+        }
+        result.previous().put(block, original);
+        block.setBlockData(powered, false);
+        result.applied().put(block, powered);
     }
 
     /** The six neighbours of a block. */
