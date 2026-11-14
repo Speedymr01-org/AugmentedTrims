@@ -186,7 +186,8 @@ abilities:
     visual-spacing: 1.5
     # How far the sparks sink before they fade, in blocks.
     visual-fall: 0.2
-    # How long the ring takes to sink and fade, in ticks.
+    # How long one lot of sparks lives, in ticks. A new lot fades in exactly when the last one
+    # has faded, so the ring is always there without a gap.
     visual-ticks: 8
 
 messages:

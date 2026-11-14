@@ -41,6 +41,7 @@ public final class NetheriteAura implements Ability {
 
     private final JavaPlugin plugin;
     private final BukkitTask task;
+    private final BukkitTask visualTask;
 
     /** Explicit on/off choices; absent means "whatever default-enabled says". */
     private final Map<UUID, Boolean> state = new HashMap<>();
@@ -49,6 +50,11 @@ public final class NetheriteAura implements Ability {
         this.plugin = plugin;
         int interval = Math.max(5, plugin.getConfig().getInt("abilities.netherite.interval-ticks", 20));
         this.task = Bukkit.getScheduler().runTaskTimer(plugin, this::pulse, interval, interval);
+        // The ring is drawn in batches: a new batch appears exactly when the last one has faded,
+        // so the aura is always shown without a gap.
+        int visualTicks = Math.max(1, plugin.getConfig().getInt("abilities.netherite.visual-ticks", 8));
+        this.visualTask = Bukkit.getScheduler()
+                .runTaskTimer(plugin, this::drawRings, visualTicks, visualTicks);
     }
 
     @Override
@@ -90,6 +96,22 @@ public final class NetheriteAura implements Ability {
                 message(wearer, "messages.ability.aura-ended",
                         "&7Dread aura ended - no netherite trim equipped.");
             }
+        }
+    }
+
+    /**
+     * Draws one batch of the ring for everybody whose aura is on.
+     */
+    private void drawRings() {
+        for (Player wearer : Bukkit.getOnlinePlayers()) {
+            if (!isOn(wearer)) {
+                continue;
+            }
+            int pieces = TrimScanner.countEquipped(wearer).getOrDefault(NETHERITE, 0);
+            if (pieces <= 0) {
+                continue;
+            }
+            showRing(wearer, radius(Math.min(4, pieces)));
         }
     }
 
@@ -149,8 +171,6 @@ public final class NetheriteAura implements Ability {
         int amplifier = Math.max(0, config.getInt("abilities.netherite.amplifier", 0));
         boolean affectsSelf = config.getBoolean("abilities.netherite.affect-self", false);
 
-        showRing(wearer, radius);
-
         for (Player target : wearer.getWorld().getPlayers()) {
             if (target.equals(wearer) && !affectsSelf) {
                 continue;
@@ -192,6 +212,7 @@ public final class NetheriteAura implements Ability {
     @Override
     public void shutdown() {
         task.cancel();
+        visualTask.cancel();
         state.clear();
     }
 

@@ -66,7 +66,8 @@ no matching trim armour, `You need <Material> trim armour to power this star.`
   off, one second cooldown either way. The five second blindness/nausea is re-applied while
   someone is in range and simply runs out when they leave it.
 - The aura shows its reach as a **sparse ring of dark sparks** around the wearer: a horizontal
-  ring, one spark per point, each sinking a little before it fades. Tune it with
+  ring, one spark per point, each sinking a little before it fades. A new lot of sparks fades in
+  exactly when the last one has faded, so the ring is always there. Tune it with
   `abilities.netherite.visual`, `visual-spacing`, `visual-fall` and `visual-ticks`.
 - Stars cannot be used to craft beacons.
 
