@@ -99,6 +99,10 @@ public final class AugmentedTrims extends JavaPlugin {
         if (abilityManager != null) {
             abilityManager.shutdown();
         }
+        if (redstoneEmp != null) {
+            // A pulse that is still running must not leave a piston without its head behind.
+            redstoneEmp.restoreAll();
+        }
     }
 
     /** Reloads config.yml and trims.yml, then restarts the refresh task with the new interval. */

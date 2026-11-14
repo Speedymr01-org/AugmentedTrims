@@ -96,7 +96,7 @@ public final class EmpDebugCommand {
                 plugin.redstoneEmp().hideSources(world, sources);
             }
             plugin.redstoneEmp().notifyClients(world, result.applied());
-            plugin.redstoneEmp().restoreLater(result.previous(), sources, ticks);
+            plugin.redstoneEmp().restoreLater(result, sources, ticks);
         }
 
         report(player, radius, tier, ticks, apply, result, sources, reached);

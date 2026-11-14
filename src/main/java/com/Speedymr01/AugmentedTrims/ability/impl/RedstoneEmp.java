@@ -24,12 +24,12 @@ import org.bukkit.block.Dispenser;
 import org.bukkit.block.Dropper;
 import org.bukkit.block.data.AnaloguePowerable;
 import org.bukkit.block.data.BlockData;
-import org.bukkit.block.data.Directional;
 import org.bukkit.block.data.Lightable;
 import org.bukkit.block.data.Openable;
 import org.bukkit.block.data.Powerable;
 import org.bukkit.block.data.type.NoteBlock;
 import org.bukkit.block.data.type.Piston;
+import org.bukkit.block.data.type.TechnicalPiston;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
@@ -55,9 +55,12 @@ import org.bukkit.plugin.java.JavaPlugin;
  *       play - through the vanilla API, so the world ends up in a correct state.</li>
  * </ul>
  *
- * <p>Nothing is ever placed in the world for this. As an alternative the pulse can also be made
- * "real" by placing temporary blocks of redstone, which lets the vanilla engine do the work
- * (see {@code abilities.redstone.real-sources}).
+ * <p>Nothing is ever placed in the world for this, except the head of a piston that extends: a
+ * piston without its head is a broken block, so it gets one and it is taken away again when the
+ * pulse ends.
+ *
+ * <p>As an alternative the pulse can also be made "real" by placing temporary blocks of redstone,
+ * which lets the vanilla engine do the work (see {@code abilities.redstone.real-sources}).
  *
  * <p>The sphere ignores walls and line of sight: anything inside the radius is affected.
  *
@@ -92,15 +95,6 @@ public final class RedstoneEmp implements Ability {
             Material.DROPPER,
             Material.NOTE_BLOCK);
 
-    /**
-     * True when the block reacts to a signal. Doors, trapdoors and fence gates are not in the
-     * list above because they exist in too many variants - they are recognised by their data.
-     */
-    private static boolean isConsumer(Block block) {
-        return CONSUMERS.contains(block.getType())
-                || block.getBlockData() instanceof Openable;
-    }
-
     /** Where a temporary power source may go, in order of preference. */
     private static final int[][] SOURCE_OFFSETS = {
             {0, 1, 0},
@@ -120,6 +114,7 @@ public final class RedstoneEmp implements Ability {
     public record SweepResult(int scanned, int air, int liquid,
                               List<Change> changes, Map<String, Integer> skipped,
                               List<Block> tnt, List<Block> actions, List<Block> wires,
+                              List<Block> heads,
                               Map<Block, BlockData> previous, Map<Block, BlockData> applied) {
 
         /** Blocks that were written but did not keep the new state. */
@@ -142,7 +137,12 @@ public final class RedstoneEmp implements Ability {
     public record Reach(Block block, int power, String kind) {
     }
 
+    /** A pulse that is still running, so it can be cleaned up when the plugin stops. */
+    private record Pulse(Map<Block, BlockData> previous, List<Block> heads, List<Block> sources) {
+    }
+
     private final JavaPlugin plugin;
+    private final List<Pulse> running = new ArrayList<>();
 
     public RedstoneEmp(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -197,7 +197,7 @@ public final class RedstoneEmp implements Ability {
         // Push the new states to the clients by hand: a short pulse is otherwise invisible, and
         // the server does not always send an update for a block that was flipped directly.
         notifyClients(world, result.applied());
-        restoreLater(result.previous(), sources, pulseTicks());
+        restoreLater(result, sources, pulseTicks());
         feedback(world, centre, radius);
         return true;
     }
@@ -221,6 +221,7 @@ public final class RedstoneEmp implements Ability {
         List<Block> tnt = new ArrayList<>();
         List<Block> actions = new ArrayList<>();
         List<Block> wires = new ArrayList<>();
+        List<Block> heads = new ArrayList<>();
         Map<String, Integer> skipped = new LinkedHashMap<>();
         int scanned = 0;
         int air = 0;
@@ -267,13 +268,15 @@ public final class RedstoneEmp implements Ability {
                         // Wires carry the pulse further than the sphere.
                         wires.add(block);
                     }
+
+                    boolean piston = isPiston(original);
                     Powered powered = power(original);
-                    if (powered.kind() == null) {
+                    if (powered.kind() == null && !piston) {
                         // Not a block that carries a power state at all.
                         skipped.merge(original.getMaterial().name(), 1, Integer::sum);
                         continue;
                     }
-                    if (!powered.changed()) {
+                    if (!powered.changed() && !piston) {
                         // Supports a power state but is already in it.
                         skipped.merge(original.getMaterial().name() + " (already)", 1, Integer::sum);
                         continue;
@@ -281,24 +284,23 @@ public final class RedstoneEmp implements Ability {
 
                     boolean stuck = false;
                     if (apply) {
-                        previous.put(block, original);
-                        // No physics: every affected block is flipped explicitly, and applying
-                        // physics would make the redstone engine recalculate our 15-power wire
-                        // straight back down to 0 before the pulse is over.
-                        block.setBlockData(powered.data(), false);
-                        applied.put(block, powered.data());
-                        // Read back: if the state did not stick, the client will never see it.
-                        stuck = !block.getBlockData().equals(powered.data());
+                        flip(block, previous, applied, heads, true);
+                        if (!piston) {
+                            // Read back: if the state did not stick, the client will never see it.
+                            stuck = !block.getBlockData().equals(powered.data());
+                        }
                     }
 
-                    changes.add(new Change(x, y, z, original.getMaterial().name(), powered.kind(),
-                            describe(original), describe(powered.data()), apply, stuck));
+                    changes.add(new Change(x, y, z, original.getMaterial().name(),
+                            piston ? "Piston" : powered.kind(),
+                            describe(original), describe(block.getBlockData()), apply, stuck));
                 }
             }
         }
 
         return new SweepResult(scanned, air, liquid, List.copyOf(changes), skipped,
-                List.copyOf(tnt), List.copyOf(actions), List.copyOf(wires), previous, applied);
+                List.copyOf(tnt), List.copyOf(actions), List.copyOf(wires), List.copyOf(heads),
+                previous, applied);
     }
 
     /**
@@ -339,30 +341,15 @@ public final class RedstoneEmp implements Ability {
                     live.put(neighbour, next);
                     queue.add(neighbour);
                     // The wire outside the sphere lights up as well, and is restored afterwards.
-                    flip(neighbour, result, apply);
+                    flip(neighbour, result.previous(), result.applied(), result.heads(), apply);
                 } else if (isConsumer(neighbour) && fired.add(neighbour)) {
                     // Powered: light it up, open it, extend it.
-                    flip(neighbour, result, apply);
+                    flip(neighbour, result.previous(), result.applied(), result.heads(), apply);
                     reached.add(new Reach(neighbour, power, "powered"));
                 }
             }
         }
         return reached;
-    }
-
-    /** Puts a block into its powered state and remembers the old one for the restore. */
-    private void flip(Block block, SweepResult result, boolean apply) {
-        BlockData original = block.getBlockData();
-        BlockData powered = power(original).data();
-        if (original.equals(powered)) {
-            return;
-        }
-        if (!apply) {
-            return;
-        }
-        result.previous().put(block, original);
-        block.setBlockData(powered, false);
-        result.applied().put(block, powered);
     }
 
     /** The six neighbours of a block. */
@@ -375,6 +362,72 @@ public final class RedstoneEmp implements Ability {
         list.add(block.getRelative(0, 0, 1));
         list.add(block.getRelative(0, 0, -1));
         return list;
+    }
+
+    /**
+     * Puts a block into its powered state and remembers the old one for the restore.
+     */
+    private void flip(Block block, Map<Block, BlockData> previous, Map<Block, BlockData> applied,
+                      List<Block> heads, boolean apply) {
+        BlockData original = block.getBlockData();
+        if (isPiston(original)) {
+            extendPiston(block, original, previous, applied, heads, apply);
+            return;
+        }
+        BlockData powered = power(original).data();
+        if (original.equals(powered)) {
+            return;
+        }
+        if (!apply) {
+            return;
+        }
+        previous.put(block, original);
+        block.setBlockData(powered, false);
+        applied.put(block, powered);
+    }
+
+    private static boolean isPiston(BlockData data) {
+        return data instanceof Piston;
+    }
+
+    /**
+     * Extends a piston - with its head.
+     *
+     * <p>A piston that is extended without a head is a broken block: the server and the client
+     * disagree about it and it can stay that way. So the head is placed as well and taken away
+     * again when the pulse ends. A piston that has no room for its head is left alone.
+     */
+    private void extendPiston(Block block, BlockData original, Map<Block, BlockData> previous,
+                              Map<Block, BlockData> applied, List<Block> heads, boolean apply) {
+        Piston piston = (Piston) original;
+        if (piston.isExtended()) {
+            // Already out.
+            return;
+        }
+        Block head = block.getRelative(0, 1, 0);
+        if (!head.isEmpty()) {
+            // No room for the head: extending it would break it.
+            return;
+        }
+        if (!apply) {
+            return;
+        }
+        // The head goes in first: a piston that claims to be extended while its head is missing
+        // is a state the server does not accept.
+        head.setType(Material.PISTON_HEAD, false);
+        if (head.getBlockData() instanceof TechnicalPiston headData) {
+            headData.setFacing(piston.getFacing());
+            headData.setType(block.getType() == Material.STICKY_PISTON
+                    ? TechnicalPiston.Type.STICKY : TechnicalPiston.Type.NORMAL);
+            head.setBlockData(headData, false);
+        }
+        heads.add(head);
+
+        Piston extended = (Piston) original.clone();
+        extended.setExtended(true);
+        previous.put(block, original);
+        block.setBlockData(extended, false);
+        applied.put(block, extended);
     }
 
     /** Makes a block do the thing it does when it is powered. */
@@ -441,8 +494,7 @@ public final class RedstoneEmp implements Ability {
             if (placed.size() >= cap) {
                 break;
             }
-            if (!CONSUMERS.contains(target.getType())
-                    && !(target.getBlockData() instanceof Openable)) {
+            if (!isConsumer(target)) {
                 continue;
             }
             Block cell = findSourceCell(world, target, used);
@@ -456,6 +508,15 @@ public final class RedstoneEmp implements Ability {
             placed.add(cell);
         }
         return placed;
+    }
+
+    /**
+     * True when the block reacts to a signal. Doors, trapdoors and fence gates are not in the
+     * list above because they exist in too many variants - they are recognised by their data.
+     */
+    private static boolean isConsumer(Block block) {
+        return CONSUMERS.contains(block.getType())
+                || block.getBlockData() instanceof Openable;
     }
 
     /** Finds a free cell next to {@code target} for a temporary power source. */
@@ -557,13 +618,6 @@ public final class RedstoneEmp implements Ability {
                 changed = true;
             }
         }
-        if (result instanceof Piston piston) {
-            kinds.add("Piston");
-            if (!piston.isExtended()) {
-                piston.setExtended(true);
-                changed = true;
-            }
-        }
         return new Powered(result, kinds.isEmpty() ? null : String.join("+", kinds), changed);
     }
 
@@ -645,32 +699,54 @@ public final class RedstoneEmp implements Ability {
      * Removes the temporary power sources and puts every flipped block back exactly
      * {@code ticks} ticks later.
      */
-    public void restoreLater(Map<Block, BlockData> previous, List<Block> sources, int ticks) {
+    public void restoreLater(SweepResult result, List<Block> sources, int ticks) {
+        Pulse pulse = new Pulse(result.previous(), result.heads(), sources);
+        running.add(pulse);
         long delay = Math.max(1L, ticks);
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            World world = null;
-            // Remove the sources first: with them gone the engine recalculates and the pulse
-            // really ends.
-            for (Block source : sources) {
-                world = source.getWorld();
-                if (source.getType() == Material.REDSTONE_BLOCK) {
-                    source.setType(Material.AIR, true);
-                }
-            }
-            for (Map.Entry<Block, BlockData> entry : previous.entrySet()) {
-                Block block = entry.getKey();
-                BlockData original = entry.getValue();
-                // Skip anything that was destroyed or replaced during the pulse.
-                if (block.getType() != original.getMaterial()) {
-                    continue;
-                }
-                block.setBlockData(original, false);
-            }
-            // Tell the clients as well, so the pulse visibly ends.
-            if (world != null) {
-                notifyClients(world, previous);
-            }
+            restore(pulse);
+            running.remove(pulse);
         }, delay);
+    }
+
+    /** Puts one pulse back the way it was. */
+    private void restore(Pulse pulse) {
+        World world = null;
+        // The heads of the pistons go first: a head without its piston is just as broken.
+        for (Block head : pulse.heads()) {
+            world = head.getWorld();
+            if (head.getType() == Material.PISTON_HEAD) {
+                head.setType(Material.AIR, false);
+            }
+        }
+        // Remove the sources: with them gone the engine recalculates and the pulse really ends.
+        for (Block source : pulse.sources()) {
+            world = source.getWorld();
+            if (source.getType() == Material.REDSTONE_BLOCK) {
+                source.setType(Material.AIR, true);
+            }
+        }
+        for (Map.Entry<Block, BlockData> entry : pulse.previous().entrySet()) {
+            Block block = entry.getKey();
+            BlockData original = entry.getValue();
+            // Skip anything that was destroyed or replaced during the pulse.
+            if (block.getType() != original.getMaterial()) {
+                continue;
+            }
+            block.setBlockData(original, false);
+        }
+        // Tell the clients as well, so the pulse visibly ends.
+        if (world != null) {
+            notifyClients(world, pulse.previous());
+        }
+    }
+
+    /** Puts every running pulse back, used when the plugin stops. */
+    public void restoreAll() {
+        for (Pulse pulse : new ArrayList<>(running)) {
+            restore(pulse);
+        }
+        running.clear();
     }
 
     /**
