@@ -1,6 +1,8 @@
 package com.Speedymr01.AugmentedTrims.ability.impl;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -10,17 +12,23 @@ import java.util.Set;
 import com.Speedymr01.AugmentedTrims.ability.Ability;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Instrument;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockState;
+import org.bukkit.block.Dispenser;
+import org.bukkit.block.Dropper;
 import org.bukkit.block.data.AnaloguePowerable;
 import org.bukkit.block.data.BlockData;
+import org.bukkit.block.data.Directional;
 import org.bukkit.block.data.Lightable;
 import org.bukkit.block.data.Openable;
 import org.bukkit.block.data.Powerable;
+import org.bukkit.block.data.type.NoteBlock;
 import org.bukkit.block.data.type.Piston;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
@@ -35,12 +43,21 @@ import org.bukkit.plugin.java.JavaPlugin;
  * full power, levers/buttons/rails/repeaters/comparators read as powered, redstone lamps and
  * redstone torches light, doors/trapdoors/fence gates open, pistons extend and TNT is primed.
  *
- * <p>Flipping the block states alone is not enough: the vanilla redstone engine would never hear
- * about it, so a wire would look bright without powering the lamp it feeds. To make the pulse
- * real, a temporary block of redstone is placed next to every block that consumes a signal. The
- * engine then does the rest - the wire really powers what it is connected to, dispensers really
- * dispense, crafters really craft, note blocks really play and pistons really push. The
- * temporary blocks are removed again when the pulse ends, and the original states are restored.
+ * <p>Flipping a block state is not enough on its own: the vanilla redstone engine never hears
+ * about it, so a wire would look bright without powering the lamp it feeds. Instead of faking a
+ * signal, the plugin works the network out itself:
+ *
+ * <ul>
+ *   <li>every wire inside the sphere counts as a source with power 15,</li>
+ *   <li>the power travels along the wires, losing one per wire, exactly like vanilla,</li>
+ *   <li>everything next to a live wire is powered: lamps light, doors open, pistons extend,</li>
+ *   <li>and the blocks that act on power act: dispensers dispense, droppers drop, note blocks
+ *       play - through the vanilla API, so the world ends up in a correct state.</li>
+ * </ul>
+ *
+ * <p>Nothing is ever placed in the world for this. As an alternative the pulse can also be made
+ * "real" by placing temporary blocks of redstone, which lets the vanilla engine do the work
+ * (see {@code abilities.redstone.real-sources}).
  *
  * <p>The sphere ignores walls and line of sight: anything inside the radius is affected.
  *
@@ -49,12 +66,11 @@ import org.bukkit.plugin.java.JavaPlugin;
  */
 public final class RedstoneEmp implements Ability {
 
-    /**
-     * Blocks that consume a redstone signal. A temporary power source is placed next to these so
-     * the engine really reacts to them.
-     */
+    /** The strongest signal a wire can carry. */
+    private static final int MAX_POWER = 15;
+
+    /** Blocks that react to a signal: they light up, open, extend or fire. */
     private static final Set<Material> CONSUMERS = Set.of(
-            Material.REDSTONE_WIRE,
             Material.REDSTONE_LAMP,
             Material.COPPER_BULB,
             Material.DISPENSER,
@@ -69,6 +85,21 @@ public final class RedstoneEmp implements Ability {
             Material.DAYLIGHT_DETECTOR,
             Material.REPEATER,
             Material.COMPARATOR);
+
+    /** Blocks that do something when they are powered. */
+    private static final Set<Material> ACTIONS = Set.of(
+            Material.DISPENSER,
+            Material.DROPPER,
+            Material.NOTE_BLOCK);
+
+    /**
+     * True when the block reacts to a signal. Doors, trapdoors and fence gates are not in the
+     * list above because they exist in too many variants - they are recognised by their data.
+     */
+    private static boolean isConsumer(Block block) {
+        return CONSUMERS.contains(block.getType())
+                || block.getBlockData() instanceof Openable;
+    }
 
     /** Where a temporary power source may go, in order of preference. */
     private static final int[][] SOURCE_OFFSETS = {
@@ -88,8 +119,8 @@ public final class RedstoneEmp implements Ability {
     /** Everything one sweep saw. */
     public record SweepResult(int scanned, int air, int liquid,
                               List<Change> changes, Map<String, Integer> skipped,
-                              List<Block> tnt, Map<Block, BlockData> previous,
-                              Map<Block, BlockData> applied) {
+                              List<Block> tnt, List<Block> actions,
+                              Map<Block, BlockData> previous, Map<Block, BlockData> applied) {
 
         /** Blocks that were written but did not keep the new state. */
         public int stuck() {
@@ -101,21 +132,14 @@ public final class RedstoneEmp implements Ability {
             }
             return count;
         }
-
-        /** Blocks that support one of the power states but were already in it. */
-        public int alreadyPowered() {
-            int count = 0;
-            for (Map.Entry<String, Integer> entry : skipped.entrySet()) {
-                if (entry.getKey().endsWith("(already)")) {
-                    count += entry.getValue();
-                }
-            }
-            return count;
-        }
     }
 
     /** The powered variant of a block, plus which interface matched. */
     private record Powered(BlockData data, String kind, boolean changed) {
+    }
+
+    /** A block that the simulated network reached. */
+    public record Reach(Block block, int power, String kind) {
     }
 
     private final JavaPlugin plugin;
@@ -142,14 +166,31 @@ public final class RedstoneEmp implements Ability {
         Location centre = player.getLocation().add(0, 0.9, 0);
 
         SweepResult result = sweep(world, centre, radius, true);
-        // Real power sources, so the vanilla engine actually reacts to the pulse.
-        List<Block> sources = placeSources(world, new ArrayList<>(result.applied().keySet()),
-                maxSources());
+
+        // Optional: let the vanilla engine do the work with temporary blocks of redstone.
+        List<Block> sources = List.of();
+        if (realSources()) {
+            sources = placeSources(world, new ArrayList<>(result.applied().keySet()), maxSources());
+            hideSources(world, sources);
+        }
+
+        // The blocks that act on power act, even without a signal.
+        for (Block action : result.actions()) {
+            fire(world, action);
+        }
+
+        // The pulse travels along the wires and powers what they feed.
+        List<Reach> reached = propagate(world, result);
+        for (Reach reach : reached) {
+            if (!result.actions().contains(reach.block())) {
+                fire(world, reach.block());
+            }
+        }
+
         prime(world, player, result.tnt(), fuseTicks());
         // Push the new states to the clients by hand: a short pulse is otherwise invisible, and
         // the server does not always send an update for a block that was flipped directly.
         notifyClients(world, result.applied());
-        hideSources(world, sources);
         restoreLater(result.previous(), sources, pulseTicks());
         feedback(world, centre, radius);
         return true;
@@ -172,6 +213,7 @@ public final class RedstoneEmp implements Ability {
         Map<Block, BlockData> previous = new LinkedHashMap<>();
         Map<Block, BlockData> applied = new LinkedHashMap<>();
         List<Block> tnt = new ArrayList<>();
+        List<Block> actions = new ArrayList<>();
         Map<String, Integer> skipped = new LinkedHashMap<>();
         int scanned = 0;
         int air = 0;
@@ -210,6 +252,10 @@ public final class RedstoneEmp implements Ability {
                     }
 
                     BlockData original = block.getBlockData();
+                    if (ACTIONS.contains(original.getMaterial())) {
+                        // Nothing to flip, but it reacts to power.
+                        actions.add(block);
+                    }
                     Powered powered = power(original);
                     if (powered.kind() == null) {
                         // Not a block that carries a power state at all.
@@ -241,18 +287,138 @@ public final class RedstoneEmp implements Ability {
         }
 
         return new SweepResult(scanned, air, liquid, List.copyOf(changes), skipped,
-                List.copyOf(tnt), previous, applied);
+                List.copyOf(tnt), List.copyOf(actions), previous, applied);
+    }
+
+    /**
+     * Works out what the pulse reaches, without placing a single block.
+     *
+     * <p>Every wire inside the sphere is a source with power 15. From there the power travels
+     * along the wires, losing one per wire, and everything next to a live wire is powered -
+     * including the blocks outside the sphere that the wires feed.
+     */
+    public List<Reach> propagate(World world, SweepResult result) {
+        Map<Block, Integer> live = new LinkedHashMap<>();
+        Deque<Block> queue = new ArrayDeque<>();
+        for (Block block : result.applied().keySet()) {
+            if (block.getType() == Material.REDSTONE_WIRE) {
+                live.put(block, MAX_POWER);
+                queue.add(block);
+            }
+        }
+        Set<Block> visited = new HashSet<>(live.keySet());
+        List<Reach> reached = new ArrayList<>();
+        Set<Block> fired = new HashSet<>();
+
+        while (!queue.isEmpty()) {
+            Block source = queue.poll();
+            int power = live.get(source);
+            for (Block neighbour : neighbours(world, source)) {
+                if (neighbour.getType() == Material.REDSTONE_WIRE) {
+                    if (visited.contains(neighbour)) {
+                        continue;
+                    }
+                    // A wire next to a wire gets one less than its neighbour.
+                    int next = power - 1;
+                    if (next <= 0) {
+                        continue;
+                    }
+                    visited.add(neighbour);
+                    live.put(neighbour, next);
+                    queue.add(neighbour);
+                    // The wire outside the sphere lights up as well, and is restored afterwards.
+                    BlockData original = neighbour.getBlockData();
+                    BlockData powered = power(original).data();
+                    if (!original.equals(powered)) {
+                        result.previous().put(neighbour, original);
+                        neighbour.setBlockData(powered, false);
+                        result.applied().put(neighbour, powered);
+                    }
+                } else if (isConsumer(neighbour) && fired.add(neighbour)) {
+                    // Powered: light it up, open it, extend it.
+                    BlockData original = neighbour.getBlockData();
+                    BlockData powered = power(original).data();
+                    if (!original.equals(powered)) {
+                        result.previous().put(neighbour, original);
+                        neighbour.setBlockData(powered, false);
+                        result.applied().put(neighbour, powered);
+                    }
+                    reached.add(new Reach(neighbour, power, "powered"));
+                }
+            }
+        }
+        return reached;
+    }
+
+    /** The six neighbours of a block. */
+    private static List<Block> neighbours(World world, Block block) {
+        List<Block> list = new ArrayList<>(6);
+        list.add(block.getRelative(0, 1, 0));
+        list.add(block.getRelative(0, -1, 0));
+        list.add(block.getRelative(1, 0, 0));
+        list.add(block.getRelative(-1, 0, 0));
+        list.add(block.getRelative(0, 0, 1));
+        list.add(block.getRelative(0, 0, -1));
+        return list;
+    }
+
+    /** Makes a block do the thing it does when it is powered. */
+    private void fire(World world, Block block) {
+        BlockState state = block.getState();
+        if (state instanceof Dispenser dispenser) {
+            dispenser.dispense();
+        } else if (state instanceof Dropper dropper) {
+            dropper.drop();
+        } else if (block.getType() == Material.NOTE_BLOCK) {
+            playNote(world, block);
+        }
+    }
+
+    /** Plays the note of a note block (there is no Bukkit API for it any more). */
+    private void playNote(World world, Block block) {
+        if (!(block.getBlockData() instanceof NoteBlock data)) {
+            return;
+        }
+        float pitch = data.getNote().getPitch();
+        Sound sound = noteSound(data.getInstrument());
+        world.playSound(block.getLocation(), sound, 1.0f, pitch);
+    }
+
+    /** Maps a note block instrument to its sound. */
+    private static Sound noteSound(Instrument instrument) {
+        if (instrument == null) {
+            return Sound.BLOCK_NOTE_BLOCK_HARP;
+        }
+        return switch (instrument) {
+            case PIANO -> Sound.BLOCK_NOTE_BLOCK_HARP;
+            case BASS_DRUM -> Sound.BLOCK_NOTE_BLOCK_BASEDRUM;
+            case SNARE_DRUM -> Sound.BLOCK_NOTE_BLOCK_SNARE;
+            case STICKS -> Sound.BLOCK_NOTE_BLOCK_HAT;
+            case BASS_GUITAR -> Sound.BLOCK_NOTE_BLOCK_BASS;
+            case FLUTE -> Sound.BLOCK_NOTE_BLOCK_FLUTE;
+            case BELL -> Sound.BLOCK_NOTE_BLOCK_BELL;
+            case GUITAR -> Sound.BLOCK_NOTE_BLOCK_GUITAR;
+            case CHIME -> Sound.BLOCK_NOTE_BLOCK_CHIME;
+            case XYLOPHONE -> Sound.BLOCK_NOTE_BLOCK_XYLOPHONE;
+            case IRON_XYLOPHONE -> Sound.BLOCK_NOTE_BLOCK_IRON_XYLOPHONE;
+            case COW_BELL -> Sound.BLOCK_NOTE_BLOCK_COW_BELL;
+            case DIDGERIDOO -> Sound.BLOCK_NOTE_BLOCK_DIDGERIDOO;
+            case BIT -> Sound.BLOCK_NOTE_BLOCK_BIT;
+            case BANJO -> Sound.BLOCK_NOTE_BLOCK_BANJO;
+            case PLING -> Sound.BLOCK_NOTE_BLOCK_PLING;
+            default -> Sound.BLOCK_NOTE_BLOCK_PLING;
+        };
     }
 
     /**
      * Places a temporary block of redstone next to every block that consumes a signal, so the
-     * vanilla redstone engine really powers it.
+     * vanilla redstone engine really powers it. Only used when {@code real-sources} is on.
      *
      * @return the temporary blocks that were placed (they have to be removed again)
      */
     public List<Block> placeSources(World world, List<Block> targets, int cap) {
         List<Block> placed = new ArrayList<>();
-        if (!realSources() || cap <= 0) {
+        if (cap <= 0) {
             return placed;
         }
         Set<Long> used = new HashSet<>();
@@ -260,7 +426,8 @@ public final class RedstoneEmp implements Ability {
             if (placed.size() >= cap) {
                 break;
             }
-            if (!CONSUMERS.contains(target.getType())) {
+            if (!CONSUMERS.contains(target.getType())
+                    && !(target.getBlockData() instanceof Openable)) {
                 continue;
             }
             Block cell = findSourceCell(world, target, used);
@@ -435,9 +602,9 @@ public final class RedstoneEmp implements Ability {
         return Math.max(1, plugin.getConfig().getInt("abilities.redstone.pulse-ticks", 20));
     }
 
-    /** Whether temporary power sources are placed so the engine really reacts. */
+    /** Whether temporary power sources are placed so the vanilla engine really reacts. */
     public boolean realSources() {
-        return plugin.getConfig().getBoolean("abilities.redstone.real-sources", true);
+        return plugin.getConfig().getBoolean("abilities.redstone.real-sources", false);
     }
 
     /** Safety cap on how many temporary blocks one pulse may place. */

@@ -78,21 +78,25 @@ public final class EmpDebugCommand {
         SweepResult result = plugin.redstoneEmp().sweep(world, centre, radius, apply);
 
         List<Block> sources = List.of();
+        List<RedstoneEmp.Reach> reached = List.of();
         if (apply) {
             // Same as the ability: real power sources, so the engine reacts the same way.
-            sources = plugin.redstoneEmp().placeSources(world,
-                    new ArrayList<>(result.applied().keySet()), plugin.redstoneEmp().maxSources());
+            if (plugin.redstoneEmp().realSources()) {
+                sources = plugin.redstoneEmp().placeSources(world,
+                        new ArrayList<>(result.applied().keySet()), plugin.redstoneEmp().maxSources());
+                plugin.redstoneEmp().hideSources(world, sources);
+            }
+            reached = plugin.redstoneEmp().propagate(world, result);
             plugin.redstoneEmp().notifyClients(world, result.applied());
-            plugin.redstoneEmp().hideSources(world, sources);
             plugin.redstoneEmp().restoreLater(result.previous(), sources, ticks);
         }
 
-        report(player, radius, ticks, apply, result, sources);
+        report(player, radius, ticks, apply, result, sources, reached);
         return true;
     }
 
     private void report(Player player, double radius, int ticks, boolean apply, SweepResult result,
-                        List<Block> sources) {
+                        List<Block> sources, List<RedstoneEmp.Reach> reached) {
         String mode = apply ? "APPLY" : "DRY";
         StringBuilder head = new StringBuilder();
         head.append("player=").append(player.getName())
@@ -109,10 +113,17 @@ public final class EmpDebugCommand {
                 .append(" air=").append(result.air())
                 .append(" liquid=").append(result.liquid())
                 .append(" tnt=").append(result.tnt().size())
-                .append(" changes=").append(result.changes().size())
+                .append(" actions=").append(result.actions().size())
+                .append(" reached=").append(reached.size())
                 .append(" sources=").append(sources.size())
                 .append(" stuck=").append(result.stuck());
         plugin.getLogger().info(PREFIX + " " + head);
+
+        for (RedstoneEmp.Reach reach : reached) {
+            plugin.getLogger().info(PREFIX + "   reached " + reach.block().getX() + ","
+                    + reach.block().getY() + "," + reach.block().getZ() + " "
+                    + reach.block().getType().name() + " power=" + reach.power());
+        }
 
         for (Block source : sources) {
             plugin.getLogger().info(PREFIX + "   power source " + source.getX() + "," + source.getY()
@@ -148,6 +159,8 @@ public final class EmpDebugCommand {
                         + (apply ? " (held " + ticks + " ticks)" : ""), NamedTextColor.GRAY))
                 .append(Component.text(" | scanned " + result.scanned()
                         + " | changes " + result.changes().size()
+                        + " | actions " + result.actions().size()
+                        + " | reached " + reached.size()
                         + " | tnt " + result.tnt().size()
                         + " | sources " + sources.size()
                         + " | stuck " + result.stuck(), NamedTextColor.GRAY)));

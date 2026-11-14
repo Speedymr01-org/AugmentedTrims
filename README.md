@@ -50,7 +50,7 @@ attuned star re-attunes it. A plain nether star cannot be attuned — it must be
 | Thunderstrike | Copper | Lightning on the block you look at, no fire, 15 armour-ignoring damage in a 3 block radius |
 | Cobweb Shot | Resin | Throws a single cobweb that lands as a real block; no damage |
 | Dread Aura | Netherite | **Toggle.** While on, players within 1 / 2.5 / 4 / 5.5 blocks (tiers 1–4) get blindness + nausea for 5 s |
-| EMP | Redstone | Pulse in a 4 / 6 / 8 / 10 block sphere: redstone reads powered, lamps light, doors open, TNT primes, 55 s. Held for `abilities.redstone.pulse-ticks` (default 20 = 1 s). Temporary power sources make the vanilla engine react, so dust really drives what it feeds, dispensers really dispense and pistons really push |
+| EMP | Redstone | Pulse in a 4 / 6 / 8 / 10 block sphere: redstone reads powered, lamps light, doors open, TNT primes, 55 s. The plugin works the wire network out itself, so the pulse really travels along the wires and powers what they feed — even outside the sphere. Dispensers dispense, droppers drop, note blocks play. **Nothing is ever placed in the world.** Held for `abilities.redstone.pulse-ticks` (default 20 = 1 s). Set `abilities.redstone.real-sources: true` to let the vanilla engine do it instead, with temporary blocks of redstone |
 
 Attuned stars read `Attuned star: <Material>` (aqua) and glint. Right-click with one in your
 main hand to cast — a green `Ability activated.`, a red `Ability on cooldown.` or, when you wear
